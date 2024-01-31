@@ -162,5 +162,5 @@ correlation.analysis <- function(responses, data, out.prefix="", sample.names=NU
   }
 
   write.csv(cor.pvs, paste0(out.prefix, ".csv"))
-  cor.pvs
+  invisible(cor.pvs)
 }
