@@ -90,11 +90,15 @@ plot.correlation <- function(feature, responses, data, cor.pvs, xlab="expression
 plot.correlations <- function(cor.pvs, responses, data, which=1:10, rows=2,
                               title=NULL, xlab="expression", ylab="response") {
   if (is.null(dim(cor.pvs))) cor.pvs <- as.matrix(cor.pvs, ncol=1)
-  old.par <- par(mfrow=c(rows, ceiling(length(which) / rows)),
+  ## check that values in `which` are valid indexes:
+  valid <- intersect(1:nrow(cor.pvs), which)
+  if (length(valid) == 0) stop("No valid entries in 'which'")
+  if (length(valid) != length(which)) warning("Not all entries in 'which' are valid")
+
+  old.par <- par(mfrow=c(rows, ceiling(length(valid) / rows)),
                  mar=c(3, 3, 3, 1) + 0.1, oma=c(2, 2, 2, 0))
   on.exit(par(old.par))
-  ## TODO: check that values in `which` are valid indexes
-  for (i in which) {
+  for (i in valid) {
     feature <- rownames(cor.pvs)[i]
     plot.correlation(feature, responses, data, cor.pvs[i, ], "", "")
   }
@@ -140,6 +144,7 @@ correlation.analysis <- function(responses, data, out.prefix="", sample.names=NU
 
   cor.pvs <- correlations.with.pvalues(responses, data, methods=c("spearman", "pearson"),
                                        n.null=n.null, return.null=plot)
+  cor.pvs <- cor.pvs[order(abs(cor.pvs[, "cor.spearman"]), abs(cor.pvs[, "cor.pearson"]), decreasing=TRUE), ]
 
   ## plot to PDF file:
   if (plot && nchar(out.prefix) > 0) {
@@ -148,12 +153,10 @@ correlation.analysis <- function(responses, data, out.prefix="", sample.names=NU
     plot.correlation.densities(cor.pvs, "spearman")
     plot.correlation.densities(cor.pvs, "pearson")
     if (plot.cors > 0) {
-      ord <- order(cor.pvs[, "cor.spearman"], cor.pvs[, "cor.pearson"], decreasing=TRUE)
-      plot.correlations(cor.pvs, responses, data, ord[1:plot.cors], plot.rows,
+      is.negative <- cor.pvs[, "cor.spearman"] < 0
+      plot.correlations(cor.pvs[!is.negative, ], responses, data, 1:plot.cors, plot.rows,
                         "Top positive correlations", xlab=plot.xlab, ylab=plot.ylab)
-      ## don't just reverse decreasing ordering due to NAs at the end:
-      ord <- order(cor.pvs[, "cor.spearman"], cor.pvs[, "cor.pearson"])
-      plot.correlations(cor.pvs, responses, data, ord[1:plot.cors], plot.rows,
+      plot.correlations(cor.pvs[is.negative, ], responses, data, 1:plot.cors, plot.rows,
                         "Top negative correlations", xlab=plot.xlab, ylab=plot.ylab)
     }
   }
