@@ -29,7 +29,7 @@ filter.threshold <- function(data, threshold=1, fraction=1) {
 intersect.samples <- function(responses, data) {
   inter <- intersect(names(responses), rownames(data))
   if (length(inter) == 0) stop("No overlapping samples between `responses` and `data`")
-  list(responses=responses[inter], data=data[inter, ])
+  list(responses=responses[inter], data=data[inter, , drop=FALSE])
 }
 
 
@@ -55,7 +55,11 @@ plot.correlation <- function(feature, responses, data, cor.pvs, xlab="expression
   ## if only one value and no name, assume Pearson correlation:
   if ((length(cor.pvs) == 1) && is.null(names(cor.pvs))) names(cor.pvs) <- "cor.pearson"
   cors <- cor.pvs[grep("^cor\\.", names(cor.pvs))]
-  methods <- sub("^cor\\.", "", names(cors))
+  if (length(cors) > 0) {
+    methods <- sub("^cor\\.", "", names(cors))
+  } else {
+    methods <- names(cor.pvs) # e.g. result from `compute.correlations`
+  }
   labels <- sapply(seq_along(methods), function(i) {
     if (methods[i] == "pearson") {
       paste("r ==", format(cor.pvs[i], digits=2))
@@ -69,7 +73,7 @@ plot.correlation <- function(feature, responses, data, cor.pvs, xlab="expression
     labels <- c(labels, paste("p ==", format(cor.pvs[p.index[1]], digits=2)))
   }
   labels <- paste0("list(", paste(labels, collapse=", "), ")")
-  if (!is.null(dim(data))) data <- data[, feature] # vector or matrix/data frame given?
+  if (!is.null(dim(data)) && (ncol(data) > 1)) data <- data[, feature] # vector or matrix/data frame given?
   plot(data, responses, main=paste0(feature, "\n"), xlab=xlab, ylab=ylab)
   mtext(parse(text=labels), adj=0.5, cex=par("cex"))
 }
