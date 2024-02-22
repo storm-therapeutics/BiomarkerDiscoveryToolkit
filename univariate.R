@@ -45,7 +45,8 @@ intersect.samples <- function(responses, data) {
 #' @param cor.pvs Numeric vector of correlation coefficients (and p-values, optionally)
 #' @param xlab X axis label
 #' @param ylab Y axis label
-plot.correlation <- function(feature, responses, data, cor.pvs, xlab="expression", ylab="response") {
+#' @param shown.n Include number of samples in the annotation?
+plot.correlation <- function(feature, responses, data, cor.pvs, xlab="expression", ylab="response", show.n=FALSE) {
   ## ensure common samples:
   if ((length(responses) != nrow(data)) || !all(names(responses) == rownames(data))) {
     inter <- intersect.samples(responses, data)
@@ -72,9 +73,13 @@ plot.correlation <- function(feature, responses, data, cor.pvs, xlab="expression
   if (length(p.index) > 0) {
     labels <- c(labels, paste("p ==", format(cor.pvs[p.index[1]], digits=2)))
   }
+  ## show number of samples?
+  if (show.n) labels <- c(labels, paste("n ==", length(responses)))
+
   labels <- paste0("list(", paste(labels, collapse=", "), ")")
   if (!is.null(dim(data)) && (ncol(data) > 1)) data <- data[, feature] # vector or matrix/data frame given?
   plot(data, responses, main=paste0(feature, "\n"), xlab=xlab, ylab=ylab)
+  grid()
   mtext(parse(text=labels), adj=0.5, cex=par("cex"))
 }
 
