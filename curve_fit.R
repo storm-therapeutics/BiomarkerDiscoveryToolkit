@@ -34,7 +34,7 @@ compute.AUC <- function(dr4pl.fit, dose.range, bounded=TRUE) {
 #' @return IC50 value (or `NA`)
 get.IC50 <- function(dr4pl.fit) {
   ic50 <- unname(IC(dr4pl.fit, 50))
-  if (ic50 > max(fit$data$Dose)) return(NA)
+  if (ic50 > max(dr4pl.fit$data$Dose)) return(NA)
   ic50
 }
 
