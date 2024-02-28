@@ -34,6 +34,7 @@ compute.correlations <- function(vec, mat, margin=2, methods=c("pearson", "spear
 #' @param ... Further parameters passed to [compute.correlations()]
 #' @return List of length `n` with results of [compute.correlations()] after shuffling `vec`
 get.null.correlations <- function(n, vec, ...) {
+  ## TODO: parallelise
   lapply(1:n, function(i) {
     cat(i, "")
     shuffled <- sample(vec)
