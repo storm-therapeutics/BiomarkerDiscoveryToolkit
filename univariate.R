@@ -3,6 +3,7 @@
 
 source("correlation.R")
 
+
 #' Filter numeric features by applying a minimum threshold
 #'
 #' Features (i.e. columns in `data`) with values below the threshold in too many samples (rows) are removed.
@@ -153,23 +154,28 @@ correlation.analysis <- function(responses, data, out.prefix="", sample.names=NU
 
   cor.pvs <- correlations.with.pvalues(responses, data, methods=c("spearman", "pearson"),
                                        n.null=n.null, return.null=plot)
+  ## beware: subsetting loses attributes! - stick them back on afterwards (but don't reset names!):
+  attribs <- attributes(cor.pvs)[c("null.distributions", "null.sd")]
   cor.pvs <- cor.pvs[order(abs(cor.pvs[, "cor.spearman"]), abs(cor.pvs[, "cor.pearson"]), decreasing=TRUE), ]
+  attributes(cor.pvs)[c("null.distributions", "null.sd")] <- attribs
 
-  ## plot to PDF file:
-  if (plot && nchar(out.prefix) > 0) {
-    pdf(paste0(out.prefix, ".pdf"), paper="a4r", height=0, width=0)
-    on.exit(dev.off())
-    plot.correlation.densities(cor.pvs, "spearman")
-    plot.correlation.densities(cor.pvs, "pearson")
-    if (plot.cors > 0) {
-      is.negative <- cor.pvs[, "cor.spearman"] < 0
-      plot.correlations(cor.pvs[!is.negative, ], responses, data, 1:plot.cors, plot.rows,
-                        "Top positive correlations", xlab=plot.xlab, ylab=plot.ylab)
-      plot.correlations(cor.pvs[is.negative, ], responses, data, 1:plot.cors, plot.rows,
-                        "Top negative correlations", xlab=plot.xlab, ylab=plot.ylab)
+  if (nchar(out.prefix) > 0) { # write output file(s)
+    write.csv(cor.pvs, paste0(out.prefix, ".csv"))
+
+    if (plot) { # plot to PDF file
+      pdf(paste0(out.prefix, ".pdf"), paper="a4r", height=0, width=0)
+      on.exit(dev.off())
+      plot.correlation.densities(cor.pvs, "spearman")
+      plot.correlation.densities(cor.pvs, "pearson")
+      if (plot.cors > 0) {
+        is.negative <- cor.pvs[, "cor.spearman"] < 0
+        plot.correlations(cor.pvs[!is.negative, ], responses, data, 1:plot.cors, plot.rows,
+                          "Top positive correlations", xlab=plot.xlab, ylab=plot.ylab)
+        plot.correlations(cor.pvs[is.negative, ], responses, data, 1:plot.cors, plot.rows,
+                          "Top negative correlations", xlab=plot.xlab, ylab=plot.ylab)
+      }
     }
   }
 
-  write.csv(cor.pvs, paste0(out.prefix, ".csv"))
   invisible(cor.pvs)
 }
