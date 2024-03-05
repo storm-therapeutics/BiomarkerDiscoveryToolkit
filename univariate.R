@@ -130,7 +130,7 @@ plot.correlations <- function(cor.pvs, responses, data, which=1:10, rows=2,
 #'
 #' @param responses Named numeric vector of responses (e.g. drug effects, genetic dependencies)
 #' @param data Named numeric matrix of feature data (e.g. gene expression)
-#' @param out.prefix Path and filename prefix for output files (extension will be appended)
+#' @param out.prefix Path and filename prefix for output files (extensions will be appended)
 #' @param sample.names Subset of sample names to use
 #' @param n.null Number of repeats for null distribution
 #' @param plot Create PDF with plots?
@@ -143,6 +143,7 @@ correlation.analysis <- function(responses, data, out.prefix="", sample.names=NU
                                  n.null=10, plot=TRUE, plot.cors=15, plot.rows=3,
                                  plot.xlab="expression", plot.ylab="response") {
   ## match samples:
+  ## TODO: move to separate function to avoid copies
   if (!is.null(sample.names)) {
     data <- data[rownames(data) %in% sample.names, ]
   }
@@ -178,4 +179,44 @@ correlation.analysis <- function(responses, data, out.prefix="", sample.names=NU
   }
 
   invisible(cor.pvs)
+}
+
+
+#' Compare data for groups of responses using a statistical test
+#'
+#' For every column in `data`, compare the distributions of values based on the groups (levels) in `responses`.
+#' Use the statistical test selected by parameter `test` to calculate p-values.
+#'
+#' @param responses Named factor of categorical responses (e.g. responders/non-responders)
+#' @param data Named numeric matrix of feature data (e.g. gene expression)
+#' @param out.prefix Path and filename prefix for output files (extensions will be appended)
+#' @param sample.names Subset of sample names to use
+#' @param test Statistical test to use (default: [wilcox.test()] for two groups, otherwise [kruskal.test()])
+#' @param p.adj.method Method for multiple testing correction using [p.adjust()]
+#' @param plot Create PDF with plots?
+#' @param plot.hits Number of top hits to plot
+#' @param plot.rows Number of rows for arranging plots of top hits
+#' @param plot.xlab X axis label for plots
+#' @param plot.ylab Y axis label for plots
+#' @param ... Additional parameters passed to `test`
+#' @return Data frame of results (p-values and basic statistics)
+group.analysis <- function(responses, data, out.prefix="", sample.names=NULL, test=NULL, p.adj.method="fdr",
+                           plot=TRUE, plot.hits=15, plot.rows=3, plot.xlab="group", plot.ylab="expression",
+                           ...) {
+  ## match samples:
+  ## TODO: move to separate function to avoid copies
+  if (!is.null(sample.names)) {
+    data <- data[rownames(data) %in% sample.names, ]
+  }
+  if ((length(responses) != nrow(data)) || !all(names(responses) == rownames(data))) {
+    inter <- intersect.samples(responses, data)
+    responses <- inter$responses
+    data <- inter$data
+  }
+
+  ## TODO: run statistical test for every column of `data`, comparing distributions according to grouping in `responses`
+  ## TODO: apply multiple testing correction
+  ## TODO: plot top results (depending on `plot` and other plot parameters)
+  ## TODO: write output file (CSV)
+  ## TODO: return results
 }
