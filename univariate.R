@@ -186,13 +186,14 @@ correlation.analysis <- function(responses, data, out.prefix="", sample.names=NU
 #'
 #' For every column in `data`, compare the distributions of values based on the groups (levels) in `responses`.
 #' Use the statistical test selected by parameter `test` to calculate p-values.
+#' By default the test statistics is wilcox.test when two 'responses' are given, otherwise kruskal.test.
 #'
 #' @param responses Named factor of categorical responses (e.g. responders/non-responders)
 #' @param data Named numeric matrix of feature data (e.g. gene expression)
-#' @param out.prefix Path and filename prefix for output files (extensions will be appended)
+#' @param out.prefix If set: Path and filename prefix for output files (extensions will be appended). Default: NULL.
 #' @param sample.names Subset of sample names to use
 #' @param test Statistical test to use (default: [wilcox.test()] for two groups, otherwise [kruskal.test()])
-#' @param p.adj.method Method for multiple testing correction using [p.adjust()]
+#' @param p.adj.method Method for multiple testing correction using [p.adjust()]. Default: BH
 #' @param plot Create PDF with plots?
 #' @param plot.hits Number of top hits to plot
 #' @param plot.rows Number of rows for arranging plots of top hits
@@ -200,9 +201,16 @@ correlation.analysis <- function(responses, data, out.prefix="", sample.names=NU
 #' @param plot.ylab Y axis label for plots
 #' @param ... Additional parameters passed to `test`
 #' @return Data frame of results (p-values and basic statistics)
-group.analysis <- function(responses, data, out.prefix="", sample.names=NULL, test=NULL, p.adj.method="fdr",
-                           plot=TRUE, plot.hits=15, plot.rows=3, plot.xlab="group", plot.ylab="expression",
-                           ...) {
+#'@examples
+#'\dontrun{
+#'library(ggpubr)
+#'library(RColorBrewer)
+#'responses=readRDS( "data/responses_group.rds")
+#'data=readRDS("data/data_group.rds")
+#'check=group.analysis(data=data,responses=responses)
+#'}
+group.analysis <- function(responses, data, out.prefix=NULL, sample.names=NULL, test=NULL, p.adj.method="BH", plot=TRUE, plot.hits=15, plot.rows=3, plot.xlab="", plot.ylab="expression",...)
+{
   ## match samples:
   ## TODO: move to separate function to avoid copies
   if (!is.null(sample.names)) {
@@ -214,12 +222,70 @@ group.analysis <- function(responses, data, out.prefix="", sample.names=NULL, te
     data <- inter$data
   }
 
-  ## TODO: run statistical test for every column of `data`, comparing distributions according to grouping in `responses`
-  ## TODO: apply multiple testing correction
-  ## TODO: plot top results (depending on `plot` and other plot parameters)
-  ## TODO: write output file (CSV)
-  ## TODO: return results
+
+  if (is.null(test))
+  {
+        teststatistics=ifelse(length(levels(responses))>2,kruskal.test,wilcox.test)
+  }else{
+        ##TO DO check if test is valid
+        teststatistics=test
+  } 
+  coli= c("darkorange1",brewer.pal(8, "Blues")[c(5)],brewer.pal(8, "Blues")[c(8)])
+
+  fullFrame=cbind(data,responses)  
+  labels=levels(responses)
+  
+  ##run statistical test for every column of `data`, comparing distributions according to grouping in `responses`
+  
+  pvalueList=lapply(colnames(data),function(gene){
+    #print(gene)
+    mm=fullFrame[which(!is.na(fullFrame[gene])),]
+    statistics=teststatistics(mm[which(mm$responses==labels[1]),gene],
+      mm[which(mm$responses==labels[2]),gene])
+    return(list(gene=gene,nResponder1=length(mm[which(mm$responses==labels[1]),gene]),nResponder2=length(mm[which(mm$responses==labels[2]),gene]),p.value=statistics$p.value, statistics=statistics$statistic))
+    })
+
+  thelper=data.frame(do.call(rbind, lapply(pvalueList, data.frame, stringsAsFactors=FALSE)))
+    
+  ## apply multiple testing correction
+  thelper$p.adj=p.adjust(thelper$p.value, method =p.adj.method)
+  rownames(thelper)=NULL
+  ## add information about test statistics
+  thelper$test=ifelse(length(levels(responses))>2,"kruskal.test","wilcox.test")
+  sortedFrame=thelper[order(thelper$p.adj,decreasing=FALSE),]
+
+  ## write output file if out.prefix is set (CSV)  
+  if(!is.null(out.prefix))
+    write.csv(sortedFrame,file=file.path(out.prefix,".csv"),row.names=FALSE)
+
+  ## plot top results (depending on `plot` and other plot parameters)
+  if (plot)
+  {
+    comparison=list(c(labels[1],labels[2]))
+  
+    plots=lapply(sortedFrame$gene[seq(plot.hits)], function(x)
+    {
+        fdr=round(sortedFrame[which(sortedFrame$gene==x),"p.adj"],3)
+        subi=fullFrame[c(x,"responses")]
+        p=ggboxplot(subi,x="responses",y=x,color="responses",add = "jitter", legend = "none")+scale_colour_manual(values=coli)+ylab(plot.ylab)+xlab("")+ggtitle(paste0(x,"\nFDR: ",fdr))
+        ### TO DO: implement t.test and anova option
+        ### 
+        #if (length(levels(responses))>2)
+        #    p=p+stat_compare_means(comparisons=comparison,method="kruskal.test") 
+        #if (length(levels(responses))==2)
+        #    p=p+stat_compare_means(comparisons=comparison,method="wilcox.test")
+    
+    })
+
+    #library(gridExtra)
+
+    #ggsave(filename = file.path("test.pdf"), plot = marrangeGrob(plots, nrow=plot.rows ,byrow=TRUE), width = 20, height = 20)
+    }
+  return(sortedFrame)
 }
+
+
+
 
 
 #' Compare groups of responses defined by mutational status using a statistical test 
