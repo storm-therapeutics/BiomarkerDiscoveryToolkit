@@ -253,26 +253,23 @@ mutation.analysis <- function(responses, data, out.prefix="", sample.names=NULL,
     filter(sum(mutational_status == TRUE) >= min.samples & sum(mutational_status == FALSE) >= min.samples)
   
   # perform selected test by Gene
-  if ( nrow(response.data) >= 10 ) {
-    test_res <- response.data %>%
-      do(t = test(responses ~ mutational_status, data=., paired=FALSE)) %>%
-      summarise(across(Gene), p.value = t$p.value)
-    # calculate medians and sampling sizes for each gene and mutational status
-    other_stats <- response.data %>%
-      group_by(Gene, mutational_status) %>%
-      mutate(median=median(responses)) %>%
-      mutate(n=n()) %>%
-      select(Gene, mutational_status, n, median) %>%
-      pivot_wider(names_from = mutational_status, values_from = c(n, median), values_fn = unique)
-    # join results, order by p-value and export to csv
-    response_vs_mutation_status <- as.data.frame(inner_join(other_stats, test_res, by="Gene") %>% arrange(p.value))
-    colnames(response_vs_mutation_status) <- gsub("_", "\\.", colnames(response_vs_mutation_status))
-    rownames(response_vs_mutation_status) <- response_vs_mutation_status$Gene
-    response_vs_mutation_status$Gene <- NULL
-    write.csv(response_vs_mutation_status, file = paste0(out.prefix, ".csv"))
-  } else {
-    print("Sampling size too small for testing.")
-  }
+  if ( nrow(response.data) <= 2*min.samples ) stop("Sampling size too small for testing.")  
+  test_res <- response.data %>%
+    do(t = test(responses ~ mutational_status, data=., paired=FALSE)) %>%
+    summarise(across(Gene), p.value = t$p.value)
+  # calculate medians and sampling sizes for each gene and mutational status
+  other_stats <- response.data %>%
+    group_by(Gene, mutational_status) %>%
+    mutate(median=median(responses)) %>%
+    mutate(n=n()) %>%
+    select(Gene, mutational_status, n, median) %>%
+    pivot_wider(names_from = mutational_status, values_from = c(n, median), values_fn = unique)
+  # join results, order by p-value and export to csv
+  response_vs_mutation_status <- as.data.frame(inner_join(other_stats, test_res, by="Gene") %>% arrange(p.value))
+  colnames(response_vs_mutation_status) <- gsub("_", "\\.", colnames(response_vs_mutation_status))
+  rownames(response_vs_mutation_status) <- response_vs_mutation_status$Gene
+  response_vs_mutation_status$Gene <- NULL
+  write.csv(response_vs_mutation_status, file = paste0(out.prefix, ".csv"))
   
   if (plot) {
     top.results <- response_vs_mutation_status[c(1:plot.hits),] %>% mutate(Gene = rownames(response_vs_mutation_status)[c(1:plot.hits)])
