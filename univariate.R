@@ -220,3 +220,74 @@ group.analysis <- function(responses, data, out.prefix="", sample.names=NULL, te
   ## TODO: write output file (CSV)
   ## TODO: return results
 }
+
+
+#' Compare groups of responses defined by mutational status using a statistical test 
+#'
+#' For every column in `data`, compare the distributions of values based on the groups (levels) in `responses`.
+#' Use the statistical test selected by parameter `test` to calculate p-values.
+#'
+#' @param responses Named numeric vector of responses (e.g. drug effects, genetic dependencies)
+#' @param data Named binary matrix of gene mutation data (e.g. damaging, likely LoF)
+#' @param out.prefix Path and filename prefix for output files (extensions will be appended)
+#' @param sample.names Subset of sample names to use
+#' @param test Statistical test to use (default: [wilcox.test()])
+#' @param min.samples Minimum number of samples in each group for testing
+#' @param plot Create PDF with plots?
+#' @param plot.hits Number of top hits to plot
+#' @param plot.xlab X axis label for plots
+#' @param plot.ylab Y axis label for plots
+#' @return Data frame of results (p-values and basic statistics)
+mutation.analysis <- function(responses, data, out.prefix="", sample.names=NULL, test=wilcox.test, min.samples=5, plot=TRUE, plot.hits=10, plot.xlab="mutation", plot.ylab="response") {
+  
+  if (!is.null(sample.names)) {
+    responses <- responses[sample.names]
+  }
+  
+  # filter cell models not present in the response and select genes mutated and non-mutated in minimum 10 (5+5) cell models
+  response.data <- merge(as.data.frame(responses), data, by=0)
+  response.data <- response.data %>%    
+    drop_na(responses) %>%
+    pivot_longer(c(3:ncol(response.data)), names_to = "Gene", values_to = "mutational_status") %>%
+    group_by(Gene) %>%
+    filter(sum(mutational_status == TRUE) >= min.samples & sum(mutational_status == FALSE) >= min.samples)
+  
+  # perform selected test by Gene
+  if ( nrow(response.data) >= 10 ) {
+    test_res <- response.data %>%
+      do(t = test(responses ~ mutational_status, data=., paired=FALSE)) %>%
+      summarise(across(Gene), p.value = t$p.value)
+    # calculate medians and sampling sizes for each gene and mutational status
+    other_stats <- response.data %>%
+      group_by(Gene, mutational_status) %>%
+      mutate(median=median(responses)) %>%
+      mutate(n=n()) %>%
+      select(Gene, mutational_status, n, median) %>%
+      pivot_wider(names_from = mutational_status, values_from = c(n, median), values_fn = unique)
+    # join results, order by p-value and export to csv
+    response_vs_mutation_status <- as.data.frame(inner_join(other_stats, test_res, by="Gene") %>% arrange(p.value))
+    colnames(response_vs_mutation_status) <- gsub("_", "\\.", colnames(response_vs_mutation_status))
+    rownames(response_vs_mutation_status) <- response_vs_mutation_status$Gene
+    response_vs_mutation_status$Gene <- NULL
+    write.csv(response_vs_mutation_status, file = paste0(out.prefix, ".csv"))
+  } else {
+    print("Sampling size too small for testing.")
+  }
+  
+  if (plot) {
+    top.results <- response_vs_mutation_status[c(1:plot.hits),] %>% mutate(Gene = rownames(response_vs_mutation_status)[c(1:plot.hits)])
+    p <-  response.data %>%
+      filter(Gene %in% rownames(top.results)) %>% 
+      left_join(top.results, by="Gene") %>%
+      ggplot(aes(y = responses, x = mutational_status)) + 
+      geom_boxplot(outlier.shape = NA, width=0.5) +
+      geom_jitter(width = 0.05, size = 0.1, alpha = 0.5) +
+      xlab(plot.xlab) +
+      ylab(plot.ylab) +
+      facet_wrap(~ factor(Gene, levels = top.results$Gene) + paste("p =", format(p.value, digits=3)), scales = "free") +
+      theme_bw()
+    ggsave(plot = p, filename = paste0(out.prefix, ".pdf"), width = 210, height = 297, units = "mm")
+  }
+  
+  invisible(response_vs_mutation_status)
+}
