@@ -54,7 +54,7 @@ gsea.reactome <- function(scores, mapping=bitr(names(scores), "SYMBOL", "ENTREZI
   if (!is.null(mapping))
     names(scores) <- mapping[match(names(scores), mapping$SYMBOL), "ENTREZID"]
   gse.res <- gsePathway(scores, eps=0, ...)
-  if (replace.ids) {
+  if (replace.ids && (nrow(gse.res) > 0)) {
     ids <- strsplit(gse.res@result$core_enrichment, "/")
     genes <- lapply(ids, function(x) mapping[match(x, mapping$ENTREZID), "SYMBOL"])
     gse.res@result$core_enrichment <- sapply(genes, paste, collapse="/")
@@ -79,17 +79,18 @@ dotplot.direction <- function(gse.res, n=15, ...) {
 }
 
 
-gsea.all <- function(scores, out.prefix="GSEA_results", plot=TRUE) {
+gsea.all <- function(scores, out.prefix="GSEA_results", plot=TRUE,
+                     reactome.mapping=bitr(names(scores), "SYMBOL", "ENTREZID", org.Hs.eg.db, FALSE), ...) {
   scores <- na.omit(sort(scores, decreasing=TRUE))
 
   message("GSEA: Gene Ontology (Biological Process)...")
-  gse.go.bp <- gsea.go(scores, "BP")
+  gse.go.bp <- gsea.go(scores, "BP", ...)
   message("GSEA: Gene Ontology (Molecular Function)...")
-  gse.go.mf <- gsea.go(scores, "MF")
+  gse.go.mf <- gsea.go(scores, "MF", ...)
   message("GSEA: Reactome pathways...")
-  gse.reactome <- gsea.reactome(scores)
+  gse.reactome <- gsea.reactome(scores, mapping=reactome.mapping, ...)
   message("GSEA: Hallmark gene sets...")
-  gse.hallmark <- gsea.msigdb(scores)
+  gse.hallmark <- gsea.msigdb(scores, ...)
 
   if (nchar(out.prefix) > 0) {
     write.csv(gse.go.bp@result, paste0(out.prefix, "_GO-BP.csv"))
@@ -116,5 +117,5 @@ gsea.all <- function(scores, out.prefix="GSEA_results", plot=TRUE) {
     }
   }
 
-  invisible(list("GO.BP"=gse.go.bp, "GO.MF"=gse.go.mf, "Reactome"=gse.reactome, "Hallmark"=gse.hallmark))
+  invisible(list(GO.BP=gse.go.bp, GO.MF=gse.go.mf, Reactome=gse.reactome, Hallmark=gse.hallmark))
 }
