@@ -201,7 +201,8 @@ correlation.analysis <- function(responses, data, out.prefix="", sample.names=NU
 #' @param plot.ylab Y axis label for plots
 #' @param ... Additional parameters passed to `test`
 #' @return Data frame of results (p-values and basic statistics)
-#'@examples
+#'
+#' @examples
 #'\dontrun{
 #'library(ggpubr)
 #'library(RColorBrewer)
@@ -209,8 +210,7 @@ correlation.analysis <- function(responses, data, out.prefix="", sample.names=NU
 #'data=readRDS("data/data_group.rds")
 #'check=group.analysis(data=data,responses=responses)
 #'}
-group.analysis <- function(responses, data, out.prefix=NULL, sample.names=NULL, test=NULL, p.adj.method="BH", plot=TRUE, plot.hits=15, plot.rows=3, plot.xlab="", plot.ylab="expression",...)
-{
+group.analysis <- function(responses, data, out.prefix=NULL, sample.names=NULL, test=NULL, p.adj.method="BH", plot=TRUE, plot.hits=15, plot.rows=3, plot.xlab="", plot.ylab="expression", ...) {
   ## match samples:
   ## TODO: move to separate function to avoid copies
   if (!is.null(sample.names)) {
@@ -222,75 +222,71 @@ group.analysis <- function(responses, data, out.prefix=NULL, sample.names=NULL, 
     data <- inter$data
   }
 
+  if (is.null(test)) test <- ifelse(length(levels(responses)) > 2, kruskal.test, wilcox.test)
 
-  if (is.null(test))
-  {
-        teststatistics=ifelse(length(levels(responses))>2,kruskal.test,wilcox.test)
-  }else{
-        ##TO DO check if test is valid
-        teststatistics=test
-  } 
-  coli= c("darkorange1",brewer.pal(8, "Blues")[c(5)],brewer.pal(8, "Blues")[c(8)])
+  coli <- c("darkorange1", brewer.pal(8, "Blues")[c(5)], brewer.pal(8, "Blues")[c(8)])
 
-  fullFrame=cbind(data,responses)  
-  labels=levels(responses)
-  
-  ##run statistical test for every column of `data`, comparing distributions according to grouping in `responses`
-  
-  pvalueList=lapply(colnames(data),function(gene){
+  fullFrame <- cbind(data, responses)
+  labels <- levels(responses)
+
+  ## run statistical test for every column of `data`, comparing distributions according to grouping in `responses`
+  pvalueList <- lapply(colnames(data), function(gene) {
     #print(gene)
-    mm=fullFrame[which(!is.na(fullFrame[gene])),]
-    statistics=teststatistics(mm[which(mm$responses==labels[1]),gene],
-      mm[which(mm$responses==labels[2]),gene])
-    return(list(gene=gene,nResponder1=length(mm[which(mm$responses==labels[1]),gene]),nResponder2=length(mm[which(mm$responses==labels[2]),gene]),p.value=statistics$p.value, statistics=statistics$statistic))
-    })
+    mm <- fullFrame[which(!is.na(fullFrame[gene])), ]
+    group1 <- mm[which(mm$responses == labels[1]), gene]
+    group2 <- mm[which(mm$responses == labels[2]), gene]
 
-  thelper=data.frame(do.call(rbind, lapply(pvalueList, data.frame, stringsAsFactors=FALSE)))
-    
+    statistics <- test(group1, group2, ...)
+    list(gene=gene, nResponder1=length(group1), nResponder2=length(group2),
+         p.value=statistics$p.value, statistic=statistics$statistic)
+    ## TODO: use factor levels instead of 'Responder1'/'Responder2'
+  })
+
+  thelper <- data.frame(do.call(rbind, lapply(pvalueList, data.frame, stringsAsFactors=FALSE)))
+
   ## apply multiple testing correction
-  thelper$p.adj=p.adjust(thelper$p.value, method =p.adj.method)
-  rownames(thelper)=NULL
-  ## add information about test statistics
-  thelper$test=ifelse(length(levels(responses))>2,"kruskal.test","wilcox.test")
-  sortedFrame=thelper[order(thelper$p.adj,decreasing=FALSE),]
+  thelper$p.adj <- p.adjust(thelper$p.value, method=p.adj.method)
+  rownames(thelper) <- NULL
+  sortedFrame <- thelper[order(thelper$p.adj, decreasing=FALSE), ]
 
-  ## write output file if out.prefix is set (CSV)  
-  if(!is.null(out.prefix))
-    write.csv(sortedFrame,file=file.path(out.prefix,".csv"),row.names=FALSE)
+  ## write output file if out.prefix is set (CSV)
+  if (!is.null(out.prefix))
+    write.csv(sortedFrame, file=file.path(out.prefix, ".csv"), row.names=FALSE)
 
   ## plot top results (depending on `plot` and other plot parameters)
   if (plot)
   {
-    comparison=list(c(labels[1],labels[2]))
-  
-    plots=lapply(sortedFrame$gene[seq(plot.hits)], function(x)
+    comparison <- list(c(labels[1], labels[2]))
+
+    plots <- lapply(sortedFrame$gene[seq(plot.hits)], function(x)
     {
-        fdr=round(sortedFrame[which(sortedFrame$gene==x),"p.adj"],3)
-        subi=fullFrame[c(x,"responses")]
-        p=ggboxplot(subi,x="responses",y=x,color="responses",add = "jitter", legend = "none")+scale_colour_manual(values=coli)+ylab(plot.ylab)+xlab("")+ggtitle(paste0(x,"\nFDR: ",fdr))
+        fdr <- round(sortedFrame[which(sortedFrame$gene == x), "p.adj"], 3)
+        subi <- fullFrame[c(x, "responses")]
+        p <- ggboxplot(subi, x="responses", y=x, color="responses", add="jitter", legend="none") +
+          scale_colour_manual(values=coli) +
+          ylab(plot.ylab) +
+          xlab("") +
+          ggtitle(paste0(x, "\nFDR: ", fdr))
         ### TO DO: implement t.test and anova option
-        ### 
+        ###
         #if (length(levels(responses))>2)
-        #    p=p+stat_compare_means(comparisons=comparison,method="kruskal.test") 
+        #    p=p+stat_compare_means(comparisons=comparison,method="kruskal.test")
         #if (length(levels(responses))==2)
         #    p=p+stat_compare_means(comparisons=comparison,method="wilcox.test")
-    
+
     })
 
     #library(gridExtra)
 
     #ggsave(filename = file.path("test.pdf"), plot = marrangeGrob(plots, nrow=plot.rows ,byrow=TRUE), width = 20, height = 20)
-    }
-  return(sortedFrame)
+  }
+  invisible(sortedFrame)
 }
 
 
-
-
-
-#' Compare groups of responses defined by mutational status using a statistical test 
+#' Compare groups of responses defined by mutational status using a statistical test
 #'
-#' For every column in `data`, compare the distributions of values based on the groups (levels) in `responses`.
+#' For every column in `data`, compare the distributions of response values based on the groups in the column.
 #' Use the statistical test selected by parameter `test` to calculate p-values.
 #'
 #' @param responses Named numeric vector of responses (e.g. drug effects, genetic dependencies)
@@ -305,21 +301,21 @@ group.analysis <- function(responses, data, out.prefix=NULL, sample.names=NULL, 
 #' @param plot.ylab Y axis label for plots
 #' @return Data frame of results (p-values and basic statistics)
 mutation.analysis <- function(responses, data, out.prefix="", sample.names=NULL, test=wilcox.test, min.samples=5, plot=TRUE, plot.hits=10, plot.xlab="mutation", plot.ylab="response") {
-  
+
   if (!is.null(sample.names)) {
     responses <- responses[sample.names]
   }
-  
+
   # filter cell models not present in the response and select genes mutated and non-mutated in minimum 10 (5+5) cell models
   response.data <- merge(as.data.frame(responses), data, by=0)
-  response.data <- response.data %>%    
+  response.data <- response.data %>%
     drop_na(responses) %>%
     pivot_longer(c(3:ncol(response.data)), names_to = "Gene", values_to = "mutational_status") %>%
     group_by(Gene) %>%
     filter(sum(mutational_status == TRUE) >= min.samples & sum(mutational_status == FALSE) >= min.samples)
-  
+
   # perform selected test by Gene
-  if ( nrow(response.data) <= 2*min.samples ) stop("Sampling size too small for testing.")  
+  if ( nrow(response.data) <= 2*min.samples ) stop("Sampling size too small for testing.")
   test_res <- response.data %>%
     do(t = test(responses ~ mutational_status, data=., paired=FALSE)) %>%
     summarise(across(Gene), p.value = t$p.value)
@@ -336,13 +332,13 @@ mutation.analysis <- function(responses, data, out.prefix="", sample.names=NULL,
   rownames(response_vs_mutation_status) <- response_vs_mutation_status$Gene
   response_vs_mutation_status$Gene <- NULL
   write.csv(response_vs_mutation_status, file = paste0(out.prefix, ".csv"))
-  
+
   if (plot) {
     top.results <- response_vs_mutation_status[c(1:plot.hits),] %>% mutate(Gene = rownames(response_vs_mutation_status)[c(1:plot.hits)])
     p <-  response.data %>%
-      filter(Gene %in% rownames(top.results)) %>% 
+      filter(Gene %in% rownames(top.results)) %>%
       left_join(top.results, by="Gene") %>%
-      ggplot(aes(y = responses, x = mutational_status)) + 
+      ggplot(aes(y = responses, x = mutational_status)) +
       geom_boxplot(outlier.shape = NA, width=0.5) +
       geom_jitter(width = 0.05, size = 0.1, alpha = 0.5) +
       xlab(plot.xlab) +
@@ -351,6 +347,6 @@ mutation.analysis <- function(responses, data, out.prefix="", sample.names=NULL,
       theme_bw()
     ggsave(plot = p, filename = paste0(out.prefix, ".pdf"), width = 210, height = 297, units = "mm")
   }
-  
+
   invisible(response_vs_mutation_status)
 }
