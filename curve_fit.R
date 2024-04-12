@@ -2,6 +2,54 @@
 ## Here: utility functions for dose-response fits
 
 library(dr4pl)
+library(tidyr) # for 'pivot_longer'
+library(readxl) # TODO: load only when needed?
+
+#' Read assay data from sheets in an Excel file and fit dose-response curves
+#'
+#' Sample names (e.g. cell lines) are taken from the names of the sheets.
+#'
+#' @param excel.file Path to the Excel file
+#' @param sheets Names of sheets to read (default: use all sheets)
+#' @param dose.col Column (number) containing dose values
+#' @param rep.cols Columns containing replicate response measurements (e.g. absorbance)
+#' @param ref.row Reference row for relative responses (default: use row with dose 0)
+#' @param ... Additional parameters passed to `dr4pl(method.robust="absolute")`
+#' @return List of `dr4pl` curve fits
+fit.data.sheets <- function(excel.file, sheets=NULL, dose.col=1, rep.cols=-1, ref.row=NULL, ...) {
+  if (is.null(sheets)) sheets <- excel_sheets(excel.file) # use all sheets in the file
+
+  data.all <- lapply(sheets, function(sheet) {
+    ## suppress "New names:" messages from 'read_excel':
+    data <- as.data.frame(suppressMessages(read_excel(excel.file, sheet)))
+    ## keep only relevant columns:
+    rep.cols <- (1:ncol(data))[rep.cols] # handle default value -1
+    data <- data[, c(dose.col, rep.cols)]
+    names(data) <- c("dose", paste0("rep", seq_along(rep.cols)))
+    data
+  })
+  names(data.all) <- sheets
+
+  ## transform to relative response (and long format):
+  data.rel <- lapply(data.all, function(data) {
+    if (is.null(ref.row)) {
+      ref.row <- which(data$dose == 0)
+    }
+    if (length(ref.row) != 1) {
+      warning("Could not determine reference row - using absolute response values")
+      baseline <- 1
+    } else {
+      baseline <- median(as.numeric(data[ref.row, -1]), na.rm=TRUE)
+      data <- data[-ref.row, ]
+    }
+    data.long <- as.data.frame(pivot_longer(data, -1, names_to="rep", names_prefix="[^0-9]+", values_to="response"))
+    data.long$response <- data.long$response / baseline
+    data.long
+  })
+
+  lapply(data.rel, function(data) dr4pl(data$dose, data$response, method.robust="absolute", ...))
+}
+
 
 #' Compute the area under the curve (AUC) of a dose-response fit
 #'
