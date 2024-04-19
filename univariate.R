@@ -3,6 +3,8 @@
 
 source("correlation.R")
 
+library(ggpubr) # for plotting in 'group.analysis'
+
 
 #' Filter numeric features by applying a minimum threshold
 #'
@@ -23,6 +25,7 @@ filter.threshold <- function(data, threshold=1, fraction=1) {
 #' Filter a response vector and data matrix to contain common samples
 #'
 #' Only samples that are common between `names(responses)` and `rownames(data)` are kept.
+#' Features with missing values (`NA`) in all samples are removed as well.
 #'
 #' @param responses Named vector
 #' @param data Named matrix
@@ -30,7 +33,12 @@ filter.threshold <- function(data, threshold=1, fraction=1) {
 intersect.samples <- function(responses, data) {
   inter <- intersect(names(responses), rownames(data))
   if (length(inter) == 0) stop("No overlapping samples between `responses` and `data`")
-  list(responses=responses[inter], data=data[inter, , drop=FALSE])
+  data <- data[inter, , drop=FALSE]
+  all.na <- apply(data, 2, function(col) all(is.na(col)))
+  if (any(all.na)) {
+    warning("Removing ", sum(all.na), " feature(s) with missing values (NA) in all samples")
+  }
+  list(responses=responses[inter], data=data[, !all.na])
 }
 
 
@@ -47,7 +55,9 @@ intersect.samples <- function(responses, data) {
 #' @param xlab X axis label
 #' @param ylab Y axis label
 #' @param shown.n Include number of samples in the annotation?
-plot.correlation <- function(feature, responses, data, cor.pvs, xlab="expression", ylab="response", show.n=FALSE) {
+#' @param ... Further arguments passed to [plot()]
+plot.correlation <- function(feature, responses, data, cor.pvs, xlab="expression", ylab="response",
+                             show.n=FALSE, ...) {
   ## ensure common samples:
   if ((length(responses) != nrow(data)) || !all(names(responses) == rownames(data))) {
     inter <- intersect.samples(responses, data)
@@ -79,7 +89,7 @@ plot.correlation <- function(feature, responses, data, cor.pvs, xlab="expression
 
   labels <- paste0("list(", paste(labels, collapse=", "), ")")
   if (!is.null(dim(data)) && (ncol(data) > 1)) data <- data[, feature] # vector or matrix/data frame given?
-  plot(data, responses, main=paste0(feature, "\n"), xlab=xlab, ylab=ylab)
+  plot(data, responses, main=paste0(feature, "\n"), xlab=xlab, ylab=ylab, ...)
   grid()
   mtext(parse(text=labels), adj=0.5, cex=par("cex"))
 }
@@ -97,8 +107,9 @@ plot.correlation <- function(feature, responses, data, cor.pvs, xlab="expression
 #' @param title Plot title (default: automatically generated)
 #' @param xlab X axis label
 #' @param ylab Y axis label
+#' @param ... Further arguments passed to [plot.correlation()]
 plot.correlations <- function(cor.pvs, responses, data, which=1:10, rows=2,
-                              title=NULL, xlab="expression", ylab="response") {
+                              title=NULL, xlab="expression", ylab="response", ...) {
   if (is.null(dim(cor.pvs))) cor.pvs <- as.matrix(cor.pvs, ncol=1)
   ## check that values in `which` are valid indexes:
   valid <- intersect(1:nrow(cor.pvs), which)
@@ -110,12 +121,12 @@ plot.correlations <- function(cor.pvs, responses, data, which=1:10, rows=2,
   on.exit(par(old.par))
   for (i in valid) {
     feature <- rownames(cor.pvs)[i]
-    plot.correlation(feature, responses, data, cor.pvs[i, ], "", "")
+    plot.correlation(feature, responses, data, cor.pvs[i, ], "", "", ...)
   }
   if (is.null(title)) title <- paste("Correlating", ylab, "and", xlab)
   old.par <- c(old.par, par(mgp=c(0, 0, 0)))
-  title(paste0(title, " (n = ", length(responses), ")"), xlab=xlab, ylab=ylab,
-        outer=TRUE, cex.main=1.5, cex.lab=1.5)
+  if (title != "") title <- paste0(title, " (n = ", length(responses), ")")
+  title(title, xlab=xlab, ylab=ylab, outer=TRUE, cex.main=1.5, cex.lab=1.5)
 }
 
 
@@ -160,7 +171,7 @@ correlation.analysis <- function(responses, data, out.prefix="", sample.names=NU
   cor.pvs <- cor.pvs[order(abs(cor.pvs[, "cor.spearman"]), abs(cor.pvs[, "cor.pearson"]), decreasing=TRUE), ]
   attributes(cor.pvs)[c("null.distributions", "null.sd")] <- attribs
 
-  if (nchar(out.prefix) > 0) { # write output file(s)
+  if (out.prefix != "") { # write output file(s)
     write.csv(cor.pvs, paste0(out.prefix, ".csv"))
 
     if (plot) { # plot to PDF file
@@ -182,11 +193,49 @@ correlation.analysis <- function(responses, data, out.prefix="", sample.names=NU
 }
 
 
+#' Generate boxplots comparing groups of numeric data
+plot.group <- function(feature, responses, data, stats=NULL, xlab="", ylab="expression", ...) {
+  ## ensure common samples:
+  if ((length(responses) != nrow(data)) || !all(names(responses) == rownames(data))) {
+    inter <- intersect.samples(responses, data)
+    responses <- inter$responses
+    data <- inter$data
+  }
+  if (isTRUE(nrow(stats) > 1)) stats <- stats[feature, ]
+  plot.data <- data.frame(response=responses, data=data[, feature])
+  if (!is.null(stats)) {
+    subtitle <- paste0("p = ", format(stats[["p.value"]], digits=2), ", q = ", format(stats[["p.adj"]], digits=2))
+  } else subtitle <- ""
+  ggboxplot(plot.data, x="response", y="data", add="jitter",
+            add.params=list(alpha=0.2), legend="none", ...) +
+    labs(x=xlab, y=ylab) +
+    ggtitle(feature, subtitle=subtitle)
+}
+
+
+plot.groups <- function(stats, responses, data, which=1:10, rows=2, title=NULL,
+                        xlab=NULL, ylab="expression", ...) {
+  ## check that values in `which` are valid indexes:
+  valid <- intersect(1:nrow(stats), which)
+  if (length(valid) == 0) stop("No valid entries in 'which'")
+  if (length(valid) != length(which)) warning("Not all entries in 'which' are valid")
+
+  plots <- lapply(valid, function(i) {
+    feature <- rownames(stats)[i]
+    plot.group(feature, responses, data, stats, xlab="", ylab="", ...)
+  })
+  plot <- ggarrange(plotlist=plots, nrow=rows, ncol=ceiling(length(plots) / rows))
+  annotate_figure(plot, top=text_grob(title, face="bold"), left=text_grob(ylab, rot=90),
+                  bottom=text_grob(xlab))
+}
+
+
 #' Compare data for groups of responses using a statistical test
 #'
 #' For every column in `data`, compare the distributions of values based on the groups (levels) in `responses`.
 #' Use the statistical test selected by parameter `test` to calculate p-values.
-#' By default the test statistics is wilcox.test when two 'responses' are given, otherwise kruskal.test.
+#' By default the test is [wilcox.test()] when `responses` has two levels (i.e. two groups), otherwise [kruskal.test()].
+#' If a custom test function is supplied for `test`, it has to support the formula interface.
 #'
 #' @param responses Named factor of categorical responses (e.g. responders/non-responders)
 #' @param data Named numeric matrix of feature data (e.g. gene expression)
@@ -204,13 +253,13 @@ correlation.analysis <- function(responses, data, out.prefix="", sample.names=NU
 #'
 #' @examples
 #'\dontrun{
-#'library(ggpubr)
-#'library(RColorBrewer)
 #'responses=readRDS( "data/responses_group.rds")
 #'data=readRDS("data/data_group.rds")
 #'check=group.analysis(data=data,responses=responses)
 #'}
-group.analysis <- function(responses, data, out.prefix=NULL, sample.names=NULL, test=NULL, p.adj.method="BH", plot=TRUE, plot.hits=15, plot.rows=3, plot.xlab="", plot.ylab="expression", ...) {
+group.analysis <- function(responses, data, out.prefix=NULL, sample.names=NULL, test=NULL, p.adj.method="BH",
+                           plot=(!is.null(out.prefix)), plot.hits=15, plot.rows=3,
+                           plot.xlab="", plot.ylab="expression", ...) {
   ## match samples:
   ## TODO: move to separate function to avoid copies
   if (!is.null(sample.names)) {
@@ -224,58 +273,35 @@ group.analysis <- function(responses, data, out.prefix=NULL, sample.names=NULL, 
 
   if (is.null(test)) test <- ifelse(length(levels(responses)) > 2, kruskal.test, wilcox.test)
 
-  coli <- c("darkorange1", brewer.pal(8, "Blues")[c(5)], brewer.pal(8, "Blues")[c(8)])
-
-  fullFrame <- cbind(data, responses)
-  labels <- levels(responses)
+  fullFrame <- data.frame(response=responses, data, check.names=FALSE)
 
   ## run statistical test for every column of `data`, comparing distributions according to grouping in `responses`
-  pvalueList <- lapply(colnames(data), function(gene) {
-    #print(gene)
-    mm <- fullFrame[which(!is.na(fullFrame[gene])), ]
-    group1 <- mm[which(mm$responses == labels[1]), gene]
-    group2 <- mm[which(mm$responses == labels[2]), gene]
-
-    statistics <- test(group1, group2, ...)
-    list(gene=gene, nResponder1=length(group1), nResponder2=length(group2),
-         p.value=statistics$p.value, statistic=statistics$statistic)
-    ## TODO: use factor levels instead of 'Responder1'/'Responder2'
+  results <- lapply(colnames(data), function(feature) {
+    f <- formula(paste0("`", feature, "` ~ response"))
+    stats <- test(f, data=fullFrame, ...)
+    tab <- table(responses[!is.na(data[, feature])])
+    names(tab) <- paste0("n.", names(tab))
+    means <- tapply(data[, feature], responses, mean, na.rm=TRUE)
+    names(means) <- paste0("mean.", names(means))
+    data.frame(as.list(tab), as.list(means), statistic=stats$statistic, p.value=stats$p.value, check.names=FALSE)
   })
 
-  thelper <- data.frame(do.call(rbind, lapply(pvalueList, data.frame, stringsAsFactors=FALSE)))
+  thelper <- do.call(rbind, results)
+  rownames(thelper) <- colnames(data)
 
   ## apply multiple testing correction
   thelper$p.adj <- p.adjust(thelper$p.value, method=p.adj.method)
-  rownames(thelper) <- NULL
-  sortedFrame <- thelper[order(thelper$p.adj, decreasing=FALSE), ]
+  sortedFrame <- thelper[order(thelper$p.value), ]
 
   ## write output file if out.prefix is set (CSV)
   if (!is.null(out.prefix))
-    write.csv(sortedFrame, file=file.path(out.prefix, ".csv"), row.names=FALSE)
+    write.csv(sortedFrame, file=file.path(out.prefix, ".csv"))
 
   ## plot top results (depending on `plot` and other plot parameters)
+  ## TODO: write plot to PDF
   if (plot)
   {
-    comparison <- list(c(labels[1], labels[2]))
-
-    plots <- lapply(sortedFrame$gene[seq(plot.hits)], function(x)
-    {
-        fdr <- round(sortedFrame[which(sortedFrame$gene == x), "p.adj"], 3)
-        subi <- fullFrame[c(x, "responses")]
-        p <- ggboxplot(subi, x="responses", y=x, color="responses", add="jitter", legend="none") +
-          scale_colour_manual(values=coli) +
-          ylab(plot.ylab) +
-          xlab("") +
-          ggtitle(paste0(x, "\nFDR: ", fdr))
-        ### TO DO: implement t.test and anova option
-        ###
-        #if (length(levels(responses))>2)
-        #    p=p+stat_compare_means(comparisons=comparison,method="kruskal.test")
-        #if (length(levels(responses))==2)
-        #    p=p+stat_compare_means(comparisons=comparison,method="wilcox.test")
-
-    })
-
+    plot.groups(stats, responses, data, 1:plot.hits, plot.rows, "Top hits by p-value", plot.xlab, plot.ylab)
     #library(gridExtra)
 
     #ggsave(filename = file.path("test.pdf"), plot = marrangeGrob(plots, nrow=plot.rows ,byrow=TRUE), width = 20, height = 20)
