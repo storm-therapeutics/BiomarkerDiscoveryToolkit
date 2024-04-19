@@ -36,7 +36,7 @@ compute.correlations <- function(vec, mat, margin=2, methods=c("pearson", "spear
 get.null.correlations <- function(n, vec, ...) {
   ## TODO: parallelise
   lapply(1:n, function(i) {
-    cat(i, "")
+    message(i, " ", appendLF=FALSE)
     shuffled <- sample(vec)
     compute.correlations(shuffled, ...)
   })
@@ -77,7 +77,7 @@ correlations.with.pvalues <- function(vec, mat, ..., n.null=10, return.null=FALS
     return(cors)
   }
 
-  cat("Generating null distributions: ")
+  message("Generating null distributions: ", appendLF=FALSE)
   cors.null <- get.null.correlations(n.null, vec, mat, ...)
   ## standard deviations of null distributions:
   sd.null <- sapply(methods, function(method) {
