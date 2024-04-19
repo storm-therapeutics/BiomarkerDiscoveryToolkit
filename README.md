@@ -60,3 +60,4 @@ Examples of *features* include:
 
 ## Planned functionality
 - Multivariate prediction models with measures of feature importance (e.g. random forests)
+- R package to be submitted to CRAN or Bioconductor
