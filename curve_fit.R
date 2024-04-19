@@ -5,9 +5,27 @@ library(dr4pl)
 library(tidyr) # for 'pivot_longer'
 library(readxl) # TODO: load only when needed?
 
+
+#' Try to fit a dose-response curve using [dr4pl()], return `NULL` on failure
+#'
+#' The default parameters of the `dr4pl` call (`method.robust="absolute", method.init="logistic"`) were chosen to improve robustness.
+#'
+#' @param doses Vector of drug doses/concentrations
+#' @param responses Vector or response values
+#' @param ... Additional parameters passed to [dr4pl()]
+#' @return `dr4pl` (curve fit) object or `NULL`
+fit.robust <- function(doses, responses, ...) {
+  tryCatch(dr4pl(doses, responses, method.robust="absolute", method.init="logistic", ...),
+           error=function(e) NULL)
+  ## TODO: raise a warning?
+  ## TODO: return dose/response values on failure (fot plotting)?
+}
+
+
 #' Read assay data from sheets in an Excel file and fit dose-response curves
 #'
 #' Sample names (e.g. cell lines) are taken from the names of the sheets.
+#' Replicate measurements are expected in separate columns ("wide" format).
 #'
 #' @param excel.file Path to the Excel file
 #' @param sheets Names of sheets to read (default: use all sheets)
@@ -15,7 +33,7 @@ library(readxl) # TODO: load only when needed?
 #' @param rep.cols Columns containing replicate response measurements (e.g. absorbance)
 #' @param ref.row Reference row for relative responses (default: use row with dose 0)
 #' @param ... Additional parameters passed to `dr4pl(method.robust="absolute")`
-#' @return List of `dr4pl` curve fits
+#' @return List of `dr4pl` curve fits (or `NULL` for failed fits)
 fit.data.sheets <- function(excel.file, sheets=NULL, dose.col=1, rep.cols=-1, ref.row=NULL, ...) {
   if (is.null(sheets)) sheets <- excel_sheets(excel.file) # use all sheets in the file
 
@@ -47,7 +65,24 @@ fit.data.sheets <- function(excel.file, sheets=NULL, dose.col=1, rep.cols=-1, re
     data.long
   })
 
-  lapply(data.rel, function(data) dr4pl(data$dose, data$response, method.robust="absolute", ...))
+  lapply(data.rel, function(data) fit.robust(data$dose, data$response, ...))
+}
+
+
+#' Read assay data in "long" format and fit dose-response curves
+#'
+#' @param data Data frame containing assay data
+#' @param name.col Column containing sample (cell line) names
+#' @param dose.col Column containing dose values
+#' @param response.col Column containing response values
+#' @param percent Are response values percentages?
+#' @param ... Additional parameters passed to [dr4pl()]
+#' @return List of `dr4pl` curve fits (or `NULL` for failed fits)
+fit.data.long <- function(data, name.col, dose.col, response.col, percent=FALSE, ...) {
+  if (percent) data[[response.col]] <- data[[response.col]] / 100
+  grouping <- if (name.col == 0) rownames(data) else data[[name.col]]
+  parts <- split(data, grouping)
+  lapply(parts, function(part) fit.robust(part[[dose.col]], part[[response.col]], ...))
 }
 
 
@@ -82,7 +117,7 @@ compute.AUC <- function(dr4pl.fit, dose.range, bounded=TRUE) {
 #' @return IC50 value (or `NA`)
 get.IC50 <- function(dr4pl.fit) {
   ic50 <- unname(IC(dr4pl.fit, 50))
-  if (ic50 > max(dr4pl.fit$data$Dose)) return(NA)
+  if ((ic50 > max(dr4pl.fit$data$Dose)) || (ic50 < min(dr4pl.fit$data$Dose))) return(NA)
   ic50
 }
 
@@ -97,7 +132,7 @@ plot.curve.fit <- function(dr4pl.fit, auc=NULL, ic50=NULL) {
   if (is.null(auc)) auc <- compute.AUC(dr4pl.fit)
   if (is.null(ic50)) ic50 <- get.IC50(dr4pl.fit)
 
-  plot <- plot(dr4pl.fit)
+  plot <- plot(dr4pl.fit) + labs(title="")
   if (!is.na(ic50))
     plot <- plot + geom_vline(xintercept=ic50, color="red", linetype = "dashed") +
       annotate("text", x=ic50, y=min(dr4pl.fit$data$Response), label="IC50", color="red", hjust=1.1)
