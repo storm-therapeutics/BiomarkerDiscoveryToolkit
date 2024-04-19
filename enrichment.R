@@ -66,16 +66,16 @@ gsea.reactome <- function(scores, mapping=bitr(names(scores), "SYMBOL", "ENTREZI
 #' Create a dot plot of enrichment results
 #'
 #' `(+)` or `(-)` are appended to term descriptions to indicate enrichment among the top or bottom end of the gene list, respectively.
-#' It may be helpful to pass e.g. `label_format=40` to increase the space available for term descriptions.
 #'
 #' @param gse.res Gene set enrichment result (`gseaResult` object)
 #' @param n Number of hits to show
+#' @param label_format Space allocated to gene set labels
 #' @param ... Further arguments passed to [dotplot()]
 #' @return Dot plot
-dotplot.direction <- function(gse.res, n=15, ...) {
+dotplot.direction <- function(gse.res, n=15, label_format=40, ...) {
   updown <- ifelse(gse.res$enrichmentScore < 0, "(-)", "(+)")
-  gse.res@result$Description <- paste(gse.res@result$Description, updown)
-  dotplot(gse.res, order="pvalue", decreasing=FALSE, showCategory=n, ...)
+  gse.res@result$Description <- paste(sub("\\.$", "", gse.res@result$Description), updown)
+  dotplot(gse.res, order="pvalue", decreasing=FALSE, showCategory=n, label_format=label_format, ...)
 }
 
 
