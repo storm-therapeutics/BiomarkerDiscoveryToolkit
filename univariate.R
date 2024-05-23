@@ -4,6 +4,7 @@
 source("correlation.R")
 
 library(ggpubr) # for plotting in 'group.analysis'
+library(survival)
 
 
 #' Filter numeric features by applying a minimum threshold
@@ -125,7 +126,10 @@ plot.correlations <- function(cor.pvs, responses, data, which=1:10, rows=2,
   }
   if (is.null(title)) title <- paste("Correlating", ylab, "and", xlab)
   old.par <- c(old.par, par(mgp=c(0, 0, 0)))
-  if (title != "") title <- paste0(title, " (n = ", length(responses), ")")
+  if (title != "") {
+    n.samples <- length(intersect(names(responses), rownames(data)))
+    title <- paste0(title, " (n = ", n.samples, ")")
+  }
   title(title, xlab=xlab, ylab=ylab, outer=TRUE, cex.main=1.5, cex.lab=1.5)
 }
 
@@ -205,6 +209,7 @@ plot.group <- function(feature, responses, data, stats=NULL, xlab="", ylab="expr
   plot.data <- data.frame(response=responses, data=data[, feature])
   if (!is.null(stats)) {
     subtitle <- paste0("p = ", format(stats[["p.value"]], digits=2), ", q = ", format(stats[["p.adj"]], digits=2))
+    if ("LFC" %in% names(stats)) subtitle <- paste0(subtitle, ", LFC = ", format(stats[["LFC"]], digits=2))
   } else subtitle <- ""
   ggboxplot(plot.data, x="response", y="data", add="jitter",
             add.params=list(alpha=0.2), legend="none", ...) +
@@ -375,4 +380,83 @@ mutation.analysis <- function(responses, data, out.prefix="", sample.names=NULL,
   }
 
   invisible(response_vs_mutation_status)
+}
+
+
+#' Plot Cox model predictions for low/high feature values
+#'
+#' The names of the `quantiles` parameter are used in the figure legend
+#'
+#' @param model Univariate Cox regression model (`coxph` object)
+#' @param data Data used to generate `model`
+#' @param base.curve Observed survival curve for comparison with predictions (`survfit` object)
+#' @param quantiles Quantiles of feature values in `data` to use for prediction and plotting
+#' @param xlab X axis label for plots
+#' @param ylab Y axis label for plots
+plot.cox.pred <- function(model, data, base.curve=NULL, quantiles=c(low=0.25, high=0.75),
+                          xlab="Time", ylab="Fraction surviving") {
+  feature <- names(coef(model))
+  values <- data.frame(quantile(data[, feature], quantiles))
+  names(values) <- feature
+  cols <- if (nrow(values) == 2) c(4, 2) else (1:nrow(values)) + 1
+  plot(survfit(model, newdata=values), col=cols, lwd=2,
+       xlab=xlab, ylab=ylab, main=paste("Cox regression using", feature))
+  grid()
+  labels <- paste0("Model: ", feature, " ", names(quantiles), " (", quantiles * 100, "%)")
+  if (!is.null(base.curve)) {
+    lines(base.curve, mark.time=TRUE, conf.int=FALSE)
+    labels <- c("Observed data", labels)
+    cols <- c(1, cols)
+    lwds <- c(1, rep(2, nrow(values)))
+  } else lwds <- 2
+  legend("topright", labels, col=cols, lty=1, bg="white", lwd=lwds)
+  pvalue <- coef(summary(model))[1, 5]
+  subtitle <- paste("Significance of", feature, "model coefficient: p =", format(pvalue, digits=2))
+  mtext(subtitle, line=0.25)
+}
+
+
+#' Test for univariate associations with survival time using Cox regression
+#'
+#' For every column of `data`, a univariate Cox proportional hazard model ([coxph()]) is built to predict `responses`.
+#' Models are ranked according to the significance of the coefficient (feature from `data`).
+#'
+#' @param responses Named vector of survival times (`survival::Surv()` object)
+#' @param data Named numeric matrix of feature data (e.g. gene expression)
+#' @param out.path Path to PDF output file (if `plot=TRUE`)
+#' @param sample.names Subset of sample names to use
+#' @param plot Create PDF with Kaplan-Meier plots?
+#' @param plot.hits Number of top hits to plot
+#' @param ... Further parameters passed to [plot.cox.pred()], e.g. `xlab`/`ylab`
+#' @return List of Cox proportional hazard models for each feature, ordered by p-value
+survival.analysis <- function(responses, data, out.path="survival_analysis.pdf", sample.names=NULL,
+                              plot=TRUE, plot.hits=10, ...) {
+  ## match samples:
+  ## TODO: move to separate function to avoid copies
+  if (!is.null(sample.names)) {
+    data <- data[rownames(data) %in% sample.names, ]
+  }
+  if ((length(responses) != nrow(data)) || !all(names(responses) == rownames(data))) {
+    inter <- intersect.samples(responses, data)
+    responses <- inter$responses
+    data <- inter$data
+  }
+
+  merged <- data.frame(response=responses, data, check.names=FALSE)
+  models <- lapply(colnames(data), function(feature)
+    coxph(as.formula(paste0("response ~ `", feature, "`")), merged))
+  names(models) <- colnames(data)
+  pvalues <- sapply(models, function(m) coef(summary(m))[1, 5])
+  ord <- order(pvalues)
+
+  if (plot) {
+    base.curve <- survfit(responses ~ 1)
+    pdf(out.path)
+    for (i in 1:min(length(models), plot.hits)) {
+      plot.cox.pred(models[[ord[i]]], merged, base.curve, ...)
+    }
+    dev.off()
+  }
+
+  models[ord]
 }
