@@ -33,7 +33,7 @@ gsea.go <- function(scores, ontology=c("BP", "CC", "MF", "ALL"), db=org.Hs.eg.db
 #' @return GSEA results
 gsea.msigdb <- function(scores, gene.sets=msigdbr(category="H"), pvalue.cutoff=0.05, ...) {
   GSEA(scores, TERM2GENE=gene.sets[, c("gs_name", "human_gene_symbol")],
-       TERM2NAME=unique(gene.sets[, c("gs_name", "gs_description")]), eps=0, ...)
+       TERM2NAME=unique(gene.sets[, c("gs_name", "gs_description")]), pvalueCutoff=pvalue.cutoff, eps=0, ...)
 }
 
 
@@ -53,7 +53,7 @@ gsea.reactome <- function(scores, mapping=bitr(names(scores), "SYMBOL", "ENTREZI
                           replace.ids=TRUE, pvalue.cutoff=0.05, ...) {
   if (!is.null(mapping))
     names(scores) <- mapping[match(names(scores), mapping$SYMBOL), "ENTREZID"]
-  gse.res <- gsePathway(scores, eps=0, ...)
+  gse.res <- gsePathway(scores, eps=0, pvalueCutoff=pvalue.cutoff, ...)
   if (replace.ids && (nrow(gse.res) > 0)) {
     ids <- strsplit(gse.res@result$core_enrichment, "/")
     genes <- lapply(ids, function(x) mapping[match(x, mapping$ENTREZID), "SYMBOL"])
@@ -73,12 +73,26 @@ gsea.reactome <- function(scores, mapping=bitr(names(scores), "SYMBOL", "ENTREZI
 #' @param ... Further arguments passed to [dotplot()]
 #' @return Dot plot
 dotplot.direction <- function(gse.res, n=15, label_format=40, ...) {
+  if (nrow(gse.res) == 0) {
+    warning("No GSEA results to plot")
+    return(ggplot())
+  }
   updown <- ifelse(gse.res$enrichmentScore < 0, "(-)", "(+)")
   gse.res@result$Description <- paste(sub("\\.$", "", gse.res@result$Description), updown)
   dotplot(gse.res, order="pvalue", decreasing=FALSE, showCategory=n, label_format=label_format, ...)
 }
 
 
+#' Run gene set enrichment analyses for different sources of gene sets
+#'
+#' Performs GSEA based on GO terms ("biological process" and "molecular function" ontologies), Reactome pathways, and MSigDB Hallmark gene sets.
+#'
+#' @param scores Named list of scores for genes
+#' @param out.prefix Path and filename prefix for output files (extensions will be appended)
+#' @param plot Generate PDF file with plots?
+#' @param reactome.mapping Data frame with mapping between gene symbols and Entrez IDs (as returned by [bitr()])
+#' @param ... Further parameters passed to the `gsea...()` functions
+#' @return List of GSEA results
 gsea.all <- function(scores, out.prefix="GSEA_results", plot=TRUE,
                      reactome.mapping=bitr(names(scores), "SYMBOL", "ENTREZID", org.Hs.eg.db, FALSE), ...) {
   scores <- na.omit(sort(scores, decreasing=TRUE))
