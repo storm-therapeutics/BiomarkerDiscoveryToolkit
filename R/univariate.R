@@ -1,12 +1,6 @@
 ## Functions for biomarker discovery (e.g. for drug sensitivity in cell lines)
 ## Here: univariate analyses (considering e.g. one gene at a time)
 
-source("correlation.R")
-
-library(ggpubr) # for plotting in 'group.analysis'
-library(survival)
-
-
 #' Filter numeric features by applying a minimum threshold
 #'
 #' Features (i.e. columns in `data`) with values below the threshold in too many samples (rows) are removed.
@@ -15,6 +9,7 @@ library(survival)
 #' @param threshold Threshold value
 #' @param fraction Fraction of samples that must pass the treshold (0: one sample, 1: all samples)
 #' @return Data matrix after filtering
+#' @export filter.threshold
 filter.threshold <- function(data, threshold=1, fraction=1) {
   min.samples <- ceiling(nrow(data) * fraction)
   min.samples <- min(max(1, min.samples), nrow(data)) # must be between 1 and number of samples
@@ -55,8 +50,9 @@ intersect.samples <- function(responses, data) {
 #' @param cor.pvs Numeric vector of correlation coefficients (and p-values, optionally)
 #' @param xlab X axis label
 #' @param ylab Y axis label
-#' @param shown.n Include number of samples in the annotation?
+#' @param show.n Include number of samples in the annotation?
 #' @param ... Further arguments passed to [plot()]
+#' @export plot.correlation
 plot.correlation <- function(feature, responses, data, cor.pvs, xlab="expression", ylab="response",
                              show.n=FALSE, ...) {
   ## ensure common samples:
@@ -109,6 +105,7 @@ plot.correlation <- function(feature, responses, data, cor.pvs, xlab="expression
 #' @param xlab X axis label
 #' @param ylab Y axis label
 #' @param ... Further arguments passed to [plot.correlation()]
+#' @export plot.correlations
 plot.correlations <- function(cor.pvs, responses, data, which=1:10, rows=2,
                               title=NULL, xlab="expression", ylab="response", ...) {
   if (is.null(dim(cor.pvs))) cor.pvs <- as.matrix(cor.pvs, ncol=1)
@@ -154,6 +151,7 @@ plot.correlations <- function(cor.pvs, responses, data, which=1:10, rows=2,
 #' @param plot.xlab X axis label for [plot.correlations()] plots
 #' @param plot.ylab Y axis label for [plot.correlations()] plots
 #' @return Numeric matrix of correlation coefficients and p-values
+#' @export
 correlation.analysis <- function(responses, data, out.prefix="", sample.names=NULL,
                                  n.null=10, plot=TRUE, plot.cors=15, plot.rows=3,
                                  plot.xlab="expression", plot.ylab="response") {
@@ -176,11 +174,11 @@ correlation.analysis <- function(responses, data, out.prefix="", sample.names=NU
   attributes(cor.pvs)[c("null.distributions", "null.sd")] <- attribs
 
   if (out.prefix != "") { # write output file(s)
-    write.csv(cor.pvs, paste0(out.prefix, ".csv"))
+    utils::write.csv(cor.pvs, paste0(out.prefix, ".csv"))
 
     if (plot) { # plot to PDF file
-      pdf(paste0(out.prefix, ".pdf"), paper="a4r", height=0, width=0)
-      on.exit(dev.off())
+      grDevices::pdf(paste0(out.prefix, ".pdf"), paper="a4r", height=0, width=0)
+      on.exit(grDevices::dev.off())
       plot.correlation.densities(cor.pvs, "spearman")
       plot.correlation.densities(cor.pvs, "pearson")
       if (plot.cors > 0) {
@@ -198,6 +196,19 @@ correlation.analysis <- function(responses, data, out.prefix="", sample.names=NU
 
 
 #' Generate boxplots comparing groups of numeric data
+#'
+#' Generate one boxplot per level of `responses`.
+#' Each shows the distribution of corresponding values for `feature` in `data`.
+#'
+#' @param feature Feature (column in `data`) to plot
+#' @param responses Vector of categorical responses (factor)
+#' @param data  Named numeric matrix of feature data (e.g. gene expression)
+#' @param stats Test statistics as returned by [group.analysis()]
+#' @param xlab X axis label
+#' @param ylab Y axis label
+#' @param ... Further arguments passed to [ggpubr::ggboxplot()]
+#' @return Boxplot object
+#' @export plot.group
 plot.group <- function(feature, responses, data, stats=NULL, xlab="", ylab="expression", ...) {
   ## ensure common samples:
   if ((length(responses) != nrow(data)) || !all(names(responses) == rownames(data))) {
@@ -211,13 +222,28 @@ plot.group <- function(feature, responses, data, stats=NULL, xlab="", ylab="expr
     subtitle <- paste0("p = ", format(stats[["p.value"]], digits=2), ", q = ", format(stats[["p.adj"]], digits=2))
     if ("LFC" %in% names(stats)) subtitle <- paste0(subtitle, ", LFC = ", format(stats[["LFC"]], digits=2))
   } else subtitle <- ""
-  ggboxplot(plot.data, x="response", y="data", add="jitter",
-            add.params=list(alpha=0.2), legend="none", ...) +
+  ggpubr::ggboxplot(plot.data, x="response", y="data", add="jitter",
+                    add.params=list(alpha=0.2), legend="none", ...) +
     labs(x=xlab, y=ylab) +
     ggtitle(feature, subtitle=subtitle)
 }
 
 
+#' Generate multiple sets of boxplots comparing groups of numeric data
+#'
+#' Each plot is generated by [plot.group()].
+#'
+#' @param stats Test statistics as returned by [group.analysis()]
+#' @param responses Vector of categorical responses (factor)
+#' @param data  Named numeric matrix of feature data (e.g. gene expression)
+#' @param which Indexes selecting which results (features) to plot
+#' @param rows Number of rows of plots
+#' @param title Plot title
+#' @param xlab X axis label
+#' @param ylab Y axis label
+#' @param ... Further arguments passed to [plot.group()]
+#' @return Plot object
+#' @export plot.groups
 plot.groups <- function(stats, responses, data, which=1:10, rows=2, title=NULL,
                         xlab=NULL, ylab="expression", ...) {
   ## check that values in `which` are valid indexes:
@@ -229,9 +255,9 @@ plot.groups <- function(stats, responses, data, which=1:10, rows=2, title=NULL,
     feature <- rownames(stats)[i]
     plot.group(feature, responses, data, stats, xlab="", ylab="", ...)
   })
-  plot <- ggarrange(plotlist=plots, nrow=rows, ncol=ceiling(length(plots) / rows))
-  annotate_figure(plot, top=text_grob(title, face="bold"), left=text_grob(ylab, rot=90),
-                  bottom=text_grob(xlab))
+  plot <- ggpubr::ggarrange(plotlist=plots, nrow=rows, ncol=ceiling(length(plots) / rows))
+  ggpubr::annotate_figure(plot, top=ggpubr::text_grob(title, face="bold"),
+                          left=ggpubr::text_grob(ylab, rot=90), bottom=ggpubr::text_grob(xlab))
 }
 
 
@@ -255,6 +281,7 @@ plot.groups <- function(stats, responses, data, which=1:10, rows=2, title=NULL,
 #' @param plot.ylab Y axis label for plots
 #' @param ... Additional parameters passed to `test`
 #' @return Data frame of results (p-values and basic statistics)
+#' @export
 #'
 #' @examples
 #'\dontrun{
@@ -300,7 +327,7 @@ group.analysis <- function(responses, data, out.prefix=NULL, sample.names=NULL, 
 
   ## write output file if out.prefix is set (CSV)
   if (!is.null(out.prefix))
-    write.csv(sortedFrame, file=file.path(out.prefix, ".csv"))
+    utils::write.csv(sortedFrame, file=file.path(out.prefix, ".csv"))
 
   ## plot top results (depending on `plot` and other plot parameters)
   ## TODO: write plot to PDF
@@ -331,6 +358,7 @@ group.analysis <- function(responses, data, out.prefix=NULL, sample.names=NULL, 
 #' @param plot.xlab X axis label for plots
 #' @param plot.ylab Y axis label for plots
 #' @return Data frame of results (p-values and basic statistics)
+#' @export
 mutation.analysis <- function(responses, data, out.prefix="", sample.names=NULL, test=wilcox.test, min.samples=5, plot=TRUE, plot.hits=10, plot.xlab="mutation", plot.ylab="response") {
 
   if (!is.null(sample.names)) {
@@ -343,10 +371,10 @@ mutation.analysis <- function(responses, data, out.prefix="", sample.names=NULL,
     drop_na(responses) %>%
     pivot_longer(c(3:ncol(response.data)), names_to = "Gene", values_to = "mutational_status") %>%
     group_by(Gene) %>%
-    filter(sum(mutational_status == TRUE) >= min.samples & sum(mutational_status == FALSE) >= min.samples)
+    dplyr::filter(sum(mutational_status == TRUE) >= min.samples & sum(mutational_status == FALSE) >= min.samples)
 
   # perform selected test by Gene
-  if ( nrow(response.data) <= 2*min.samples ) stop("Sampling size too small for testing.")
+  if (nrow(response.data) <= 2 * min.samples) stop("Sampling size too small for testing.")
   test_res <- response.data %>%
     do(t = test(responses ~ mutational_status, data=., paired=FALSE)) %>%
     summarise(across(Gene), p.value = t$p.value)
@@ -362,12 +390,12 @@ mutation.analysis <- function(responses, data, out.prefix="", sample.names=NULL,
   colnames(response_vs_mutation_status) <- gsub("_", "\\.", colnames(response_vs_mutation_status))
   rownames(response_vs_mutation_status) <- response_vs_mutation_status$Gene
   response_vs_mutation_status$Gene <- NULL
-  write.csv(response_vs_mutation_status, file = paste0(out.prefix, ".csv"))
+  utils::write.csv(response_vs_mutation_status, file = paste0(out.prefix, ".csv"))
 
   if (plot) {
     top.results <- response_vs_mutation_status[c(1:plot.hits),] %>% mutate(Gene = rownames(response_vs_mutation_status)[c(1:plot.hits)])
-    p <-  response.data %>%
-      filter(Gene %in% rownames(top.results)) %>%
+    p <- response.data %>%
+      dplyr::filter(Gene %in% rownames(top.results)) %>%
       left_join(top.results, by="Gene") %>%
       ggplot(aes(y = responses, x = mutational_status)) +
       geom_boxplot(outlier.shape = NA, width=0.5) +
@@ -393,13 +421,14 @@ mutation.analysis <- function(responses, data, out.prefix="", sample.names=NULL,
 #' @param quantiles Quantiles of feature values in `data` to use for prediction and plotting
 #' @param xlab X axis label for plots
 #' @param ylab Y axis label for plots
+#' @export plot.cox.pred
 plot.cox.pred <- function(model, data, base.curve=NULL, quantiles=c(low=0.25, high=0.75),
                           xlab="Time", ylab="Fraction surviving") {
   feature <- names(coef(model))
   values <- data.frame(quantile(data[, feature], quantiles))
   names(values) <- feature
   cols <- if (nrow(values) == 2) c(4, 2) else (1:nrow(values)) + 1
-  plot(survfit(model, newdata=values), col=cols, lwd=2,
+  plot(survival::survfit(model, newdata=values), col=cols, lwd=2,
        xlab=xlab, ylab=ylab, main=paste("Cox regression using", feature))
   grid()
   labels <- paste0("Model: ", feature, " ", names(quantiles), " (", quantiles * 100, "%)")
@@ -429,6 +458,7 @@ plot.cox.pred <- function(model, data, base.curve=NULL, quantiles=c(low=0.25, hi
 #' @param plot.hits Number of top hits to plot
 #' @param ... Further parameters passed to [plot.cox.pred()], e.g. `xlab`/`ylab`
 #' @return List of Cox proportional hazard models for each feature, ordered by p-value
+#' @export
 survival.analysis <- function(responses, data, out.path="survival_analysis.pdf", sample.names=NULL,
                               plot=TRUE, plot.hits=10, ...) {
   ## match samples:
@@ -444,18 +474,18 @@ survival.analysis <- function(responses, data, out.path="survival_analysis.pdf",
 
   merged <- data.frame(response=responses, data, check.names=FALSE)
   models <- lapply(colnames(data), function(feature)
-    coxph(as.formula(paste0("response ~ `", feature, "`")), merged))
+    survival::coxph(as.formula(paste0("response ~ `", feature, "`")), merged))
   names(models) <- colnames(data)
   pvalues <- sapply(models, function(m) coef(summary(m))[1, 5])
   ord <- order(pvalues)
 
   if (plot) {
-    base.curve <- survfit(responses ~ 1)
-    pdf(out.path)
+    base.curve <- survival::survfit(responses ~ 1)
+    grDevices::pdf(out.path)
     for (i in 1:min(length(models), plot.hits)) {
       plot.cox.pred(models[[ord[i]]], merged, base.curve, ...)
     }
-    dev.off()
+    grDevices::dev.off()
   }
 
   models[ord]

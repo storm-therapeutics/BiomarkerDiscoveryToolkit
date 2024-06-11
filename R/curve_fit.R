@@ -1,11 +1,6 @@
 ## Functions for biomarker discovery (e.g. for drug sensitivity in cell lines)
 ## Here: utility functions for dose-response fits
 
-library(dr4pl)
-library(tidyr) # for 'pivot_longer'
-library(readxl) # TODO: load only when needed?
-
-
 #' Try to fit a dose-response curve using [dr4pl()], return `NULL` on failure
 #'
 #' The default parameters of the `dr4pl` call (`method.robust="absolute", method.init="logistic"`) were chosen to improve robustness.
@@ -15,10 +10,10 @@ library(readxl) # TODO: load only when needed?
 #' @param ... Additional parameters passed to [dr4pl()]
 #' @return `dr4pl` (curve fit) object or `NULL`
 fit.robust <- function(doses, responses, ...) {
-  tryCatch(dr4pl(doses, responses, method.robust="absolute", method.init="logistic", ...),
+  tryCatch(dr4pl::dr4pl(doses, responses, method.robust="absolute", method.init="logistic", ...),
            error=function(e) NULL)
   ## TODO: raise a warning?
-  ## TODO: return dose/response values on failure (fot plotting)?
+  ## TODO: return dose/response values on failure (for plotting)?
 }
 
 
@@ -34,12 +29,13 @@ fit.robust <- function(doses, responses, ...) {
 #' @param ref.row Reference row for relative responses (default: use row with dose 0)
 #' @param ... Additional parameters passed to `dr4pl(method.robust="absolute")`
 #' @return List of `dr4pl` curve fits (or `NULL` for failed fits)
+#' @export
 fit.data.sheets <- function(excel.file, sheets=NULL, dose.col=1, rep.cols=-1, ref.row=NULL, ...) {
-  if (is.null(sheets)) sheets <- excel_sheets(excel.file) # use all sheets in the file
+  if (is.null(sheets)) sheets <- readxl::excel_sheets(excel.file) # use all sheets in the file
 
   data.all <- lapply(sheets, function(sheet) {
     ## suppress "New names:" messages from 'read_excel':
-    data <- as.data.frame(suppressMessages(read_excel(excel.file, sheet)))
+    data <- as.data.frame(suppressMessages(readxl::read_excel(excel.file, sheet)))
     ## keep only relevant columns:
     rep.cols <- (1:ncol(data))[rep.cols] # handle default value -1
     data <- data[, c(dose.col, rep.cols)]
@@ -95,10 +91,11 @@ fit.data.long <- function(data, name.col, dose.col, response.col, percent=FALSE,
 #' @param dose.range Dose range (optional - taken from `dr4pl.fit` if missing)
 #' @param bounded Whether response values have to be between 0 and 1
 #' @return AUC value
+#' @export compute.AUC
 compute.AUC <- function(dr4pl.fit, dose.range, bounded=TRUE) {
   if (missing(dose.range))
     dose.range <- range(dr4pl.fit$data$Dose)
-  response <- function(x) MeanResponse(coef(dr4pl.fit), 2^x) # undo the log
+  response <- function(x) dr4pl::MeanResponse(coef(dr4pl.fit), 2^x) # undo the log
   if (bounded)
     curve <- function(x) pmax(pmin(response(x), 1), 0)
   else
@@ -115,8 +112,9 @@ compute.AUC <- function(dr4pl.fit, dose.range, bounded=TRUE) {
 #'
 #' @param dr4pl.fit Dose-response curve fit ([dr4pl()] result)
 #' @return IC50 value (or `NA`)
+#' @export
 get.IC50 <- function(dr4pl.fit) {
-  ic50 <- unname(IC(dr4pl.fit, 50))
+  ic50 <- unname(dr4pl::IC(dr4pl.fit, 50))
   if ((ic50 > max(dr4pl.fit$data$Dose)) || (ic50 < min(dr4pl.fit$data$Dose))) return(NA)
   ic50
 }
@@ -128,6 +126,7 @@ get.IC50 <- function(dr4pl.fit) {
 #' @param auc AUC value (default: calculated from `dr4pl.fit`)
 #' @param ic50 IC50 value (default: calculated from `dr4pl.fit`)
 #' @return Plot with annotations
+#' @export plot.curve.fit
 plot.curve.fit <- function(dr4pl.fit, auc=NULL, ic50=NULL) {
   if (is.null(auc)) auc <- compute.AUC(dr4pl.fit)
   if (is.null(ic50)) ic50 <- get.IC50(dr4pl.fit)
@@ -152,14 +151,15 @@ plot.curve.fit <- function(dr4pl.fit, auc=NULL, ic50=NULL) {
 #' @param dr4pl.fits Named list of dose-response curve fits ([dr4pl()] results)
 #' @param aucs AUC values (default: calculated from `dr4pl.fits`)
 #' @param ic50s IC50 values (default: calculated from `dr4pl.fits`)
+#' @export plot.curve.fits
 plot.curve.fits <- function(path, dr4pl.fits, aucs=NULL, ic50s=NULL) {
   if (is.null(aucs)) aucs <- rep(NULL, length(dr4pl.fits))
   if (is.null(ic50s)) ic50s <- rep(NULL, length(dr4pl.fits))
 
-  pdf(path)
+  grDevices::pdf(path)
   for (i in seq_along(dr4pl.fits)) {
     print(plot.curve.fit(dr4pl.fits[[i]], aucs[i], ic50s[i]) +
           labs(title=names(dr4pl.fits)[i]))
   }
-  dev.off()
+  grDevices::dev.off()
 }

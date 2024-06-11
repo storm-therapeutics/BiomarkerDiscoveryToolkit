@@ -1,9 +1,6 @@
 ## Functions for biomarker discovery (e.g. for drug sensitivity in cell lines)
 ## Here: utility functions for correlations
 
-library(stringr) # for 'str_to_title'
-
-
 #' Compute correlation coefficients between a vector and all rows/columns of a matrix
 #'
 #' Convenience function for calculating multiple correlation coefficients for a dataset.
@@ -16,6 +13,7 @@ library(stringr) # for 'str_to_title'
 #' @param margin Whether to calculate correlations per row (1) or column (2) of `mat`
 #' @param methods Which correlation coefficient(s) to calculate (see `method` argument of [cor()])
 #' @return Matrix of correlation coefficients with one column per method used
+#' @export compute.correlations
 compute.correlations <- function(vec, mat, margin=2, methods=c("pearson", "spearman")) {
   res <- lapply(methods, function(m)
     apply(mat, margin, function(x) cor(x, vec, use="complete.obs", method=m)))
@@ -69,6 +67,7 @@ estimate.pvalue <- function(x, sd) {
 #' @param return.null If `TRUE`, return details about the null distributions as attributes of the result
 #'
 #' @return Data frame with correlation coefficients and their p-values (in separate columns)
+#' @export
 correlations.with.pvalues <- function(vec, mat, ..., n.null=10, return.null=FALSE) {
   cors <- compute.correlations(vec, mat, ...)
   methods <- colnames(cors)
@@ -104,6 +103,7 @@ correlations.with.pvalues <- function(vec, mat, ..., n.null=10, return.null=FALS
 #'
 #' @param cor.res Output of [correlations.with.pvalues()] with `return.null=TRUE`
 #' @param method Results from which method to plot, if multiple were used (default: first)
+#' @export plot.correlation.densities
 plot.correlation.densities <- function(cor.res, method=NULL) {
   if (is.null(attr(cor.res, "null.distributions")))
     stop("No null distribution data available")
@@ -120,7 +120,7 @@ plot.correlation.densities <- function(cor.res, method=NULL) {
   ## plot real and null distributions:
   ymax <- max(real.density$y, sapply(null.densities, function(d) max(d$y)))
   plot(real.density, col="red", lwd=2, ylim=c(0, ymax), xlab="correlation coefficient",
-       main=paste("Distribution of", str_to_title(method), "correlations"))
+       main=paste("Distribution of", stringr::str_to_title(method), "correlations"))
   for (d in null.densities) {
     lines(d, col="grey")
   }
