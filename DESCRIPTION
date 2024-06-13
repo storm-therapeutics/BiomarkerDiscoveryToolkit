@@ -5,9 +5,9 @@ Authors@R: c(
     person("Hendrik", "Weisser", , "hendrik.weisser@stormtherapeutics.com", role = c("aut", "cre"),
            comment = c(ORCID = "0000-0001-9723-7503")),
     person("Carmen", "Livi", , "carmen.livi@stormtherapeutics.com", role = c("aut"),
-           comment = c(ORCID = "???")),
+           comment = c(ORCID = "0000-0002-4974-1403")),
     person("Georgia", "Tsagkogeorga", , "georgia.tsagkogeorga@stormtherapeutics.com", role = c("aut"),
-           comment = c(ORCID = "???")),
+           comment = c(ORCID = "0000-0002-9657-453X")),
     person("STORM Therapeutics Ltd", role = c("cph", "fnd")))
 Description: Discover biomarkers by looking for associations between responses (e.g. drug sensitivity) and biomedical data.
 License: MIT + file LICENSE
