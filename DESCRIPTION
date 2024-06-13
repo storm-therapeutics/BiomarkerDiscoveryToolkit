@@ -34,3 +34,8 @@ Imports:
     survival,
     tidyr,
     utils
+Suggests:
+    data.table,
+    knitr,
+    rmarkdown
+VignetteBuilder: knitr

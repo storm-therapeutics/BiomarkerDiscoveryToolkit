@@ -1,0 +1,176 @@
+---
+title: "Biomarker Discovery Example: Drug Response"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Biomarker Discovery Example: Drug Response}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+params:
+  dose_response_file: ""
+  responder_classes_file: ""
+  gene_expression_file: "rnaseq_tpm_20220624.csv"
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+## Introduction
+
+A novel enzyme-targeting inhibitor is being investigated as an anti-cancer drug.
+In a dose response study, it was tested for anti-proliferative effects in a diverse panel of cancer cell lines.
+Using data from this study, we fit dose response curves and thus assess the sensitivity of each tested cell line to the inhibitor.
+Then we look for potential biomarkers of drug sensitivity/resistance in gene expression data.
+The example shown here uses data from all available cell lines, but focusing on subsets (e.g. different tissues/lineages) is easily done using the `sample.names` argument in the main functions (`correlation.analysis()` and `group.analysis()`) used below.
+
+## Dose response curves
+
+We load the dose response data from a tab-delimited file.
+For each cell line we fit a curve using the [dr4pl package](https://cran.r-project.org/package=dr4pl).
+We then calculate the area under the curve (AUC) for each cell line as a measure of drug sensitivity (lower values mean "more sensitive").
+
+```{r dose_response, cache=TRUE}
+library(BiomarkerDiscoveryToolkit)
+dr.data <- read.delim(params$dose_response_file) # read tab-delimited file
+curve.fits <- fit.data.long(dr.data, "cellLineName", "conc", "poc", percent=TRUE)
+aucs <- sapply(curve.fits, compute.AUC)
+```
+
+We can plot the curves with IC50/AUC annotations; for example:
+
+```{r curve_plot, out.width="50%"}
+plot.curve.fit(curve.fits[[which.min(aucs)]]) # plot the most sensitive (by AUC) cell line
+```
+
+### Responder classification
+
+The tested cell lines were classified into "responder", "intermediate", and "non-responder" by manual inspection of the dose response curves.
+A low number of cell lines with "abnormal" curves were identified and will be excluded.
+
+```{r classes}
+classes <- read.csv(params$responder_classes_file, row.names=1, stringsAsFactors=TRUE)
+classes <- classes[classes$class != "abnormal", , drop=FALSE] # remove "abnormal" cases
+classes$class <- relevel(classes$class, ref="responder") # order classes for plotting
+```
+
+The manual classification correlates with the calculated AUCs, but does not fully recapitulate them, as the curve shapes were also taken into account:
+
+```{r plot_classes, out.width="50%"}
+library(ggpubr)
+classes$AUC <- aucs[rownames(classes)] # attach AUCs for plotting
+ggboxplot(classes, "class", "AUC", add="jitter")
+```
+
+## Gene expression analysis
+
+We use publicly available gene expression data for cell lines from [Cell Model Passports](https://cellmodelpassports.sanger.ac.uk/).
+The [RNA-seq data file](https://cog.sanger.ac.uk/cmp/download/rnaseq_all_20220624.zip) was downloaded and TPM data extracted ("`r basename(params$gene_expression_file)`").
+We prepare the dataset by generating a numeric matrix of `log2(TPM + 1)` values with cell lines in rows, genes in columns, and appropriate row/column names:
+
+```{r exp_data, cache=TRUE}
+library(data.table)
+exp.data <- fread(params$gene_expression_file) # read large file
+exp.mat <- t(as.matrix(exp.data[-(1:5), -(1:2)])) # convert to matrix
+class(exp.mat) <- "numeric" # convert strings to numbers
+exp.mat <- log2(exp.mat + 1) # apply transformation
+rownames(exp.mat) <- as.character(exp.data[2, -(1:2)]) # use cell line names as row names
+colnames(exp.mat) <- exp.data$V2[-(1:5)] # use gene symbols as column names
+exp.mat <- exp.mat[, !duplicated(colnames(exp.mat))] # remove duplicate gene symbols
+```
+
+### Using cell line AUCs
+
+We can pre-filter our data to remove cell lines without AUCs or gene expression data, and genes with low expression levels.
+(For convenience in this example, a mapping between cell line names used in the panel and in Cell Model Passports is already available.)
+Then, to find associations between expression levels of genes and AUCs of cell lines, we run a correlation-based analysis:
+
+```{r correlations, warning=FALSE, message=FALSE, cache=TRUE}
+aucs <- classes$AUC
+names(aucs) <- classes$CMP_name # use CMP cell line names for AUCs
+common <- intersect.samples(aucs, exp.mat)
+exp.mat <- filter.threshold(common$data, fraction=0.5) # require TPM >= 1 in half of samples
+aucs <- common$responses # only use AUCs from cell lines with gene expression data
+cors <- correlation.analysis(aucs, exp.mat)
+head(cors)
+```
+
+We can visualize the distribution of the resulting correlation coefficients and the corresponding null distributions that are used to estimate significance:
+
+```{r cor_distrib}
+plot.correlation.densities(cors, "spearman")
+```
+
+As well as the data for genes with highest (absolute) Spearman correlations:
+
+```{r cor_hits}
+plot.correlations(cors, aucs, exp.mat, 1:6, title="", xlab=expression(log[2](TPM+1)), ylab="AUC")
+```
+
+### Using responder classification
+
+We can alternatively look for genes with different levels of expression in the responder vs. non-responder cell lines, using a group-based analysis:
+
+```{r groups, cache=TRUE}
+groups <- classes$class
+names(groups) <- classes$CMP_name # use CMP cell line names for classes
+groups <- na.omit(droplevels(groups, "intermediate")) # don't consider "intermediate" cell lines
+stats <- group.analysis(groups, exp.mat)
+head(stats)
+```
+
+Again we can visualize the top results:
+
+```{r group_hits}
+levels(groups) <- sub("onder$", ".", levels(groups)) # shorten labels
+plot.groups(stats, groups, exp.mat, 1:6, ylab=expression(log[2](TPM + 1)))
+```
+
+### Comparison
+
+Although both the correlation-based and the group-based analysis aim to find associations between drug sensitivity and gene expression across cell lines, in this case they prioritise largely different genes:
+
+```{r comparison}
+merged <- data.frame(merge(cors, stats, by=0), row.names=1) # merge results from both analyses
+top.cor <- rownames(cors)[1:50] # top genes by correlation
+top.test <- rownames(stats)[1:50] # top genes by statistical test
+plot(abs(merged$cor.spearman), merged$p.value, log="y", xlab="|correlation|", ylab="p-value")
+points(abs(merged[top.cor, "cor.spearman"]), merged[top.cor, "p.value"], pch=3, col="blue")
+points(abs(merged[top.test, "cor.spearman"]), merged[top.test, "p.value"], pch=4, col="red")
+legend("topleft", c("gene", paste("top 50", c("(cor.)", "(p-value)"))),
+       pch=c(1, 3, 4), col=c("black", "blue", "red"))
+```
+
+Among the sets of top 50 genes by (Spearman) correlation and by p-value, only `r {n <- length(intersect(top.cor, top.test)); paste(n, ifelse(n == 1, "gene is", "genes are"))}` in common.
+These dissimilar results highlight the value of having multiple complementary analysis options.
+
+## Gene set enrichments
+
+It is often useful to aggregate gene-level results to the level of gene sets (e.g. pathways, functional annotations).
+To this end, we define gene-wise scores such that a positive (negative) score indicates an association of drug sensitivity with higher (lower) gene expression:
+
+```{r gsea_scores}
+scores.cor <- -cors[, "cor.spearman"]; names(scores.cor) <- rownames(cors) # cor.-based analysis
+scores.test <- -log10(stats$p.value) * sign(stats$mean.responder - stats$"mean.non-responder")
+names(scores.test) <- rownames(stats) # group-based analysis
+```
+
+We can then easily run gene set enrichment analyses (GSEA) for Gene Ontology ("Biological Process"/"Molecular Function") annotations, Reactome pathways, and MSigDB Hallmark gene sets using one function call:
+
+```{r gsea, message=FALSE, warning=FALSE, cache=TRUE}
+gsea.cor <- gsea.all(scores.cor, out.prefix="")
+gsea.test <- gsea.all(scores.test, out.prefix="")
+```
+
+Looking at the top GSEA results for Hallmark gene sets, we observe a limited overlap between our two analyses (EMT, IFNg/estrogen response):
+
+```{r gsea_plot, out.width="50%", fig.show="hold"}
+dotplot.direction(gsea.cor$Hallmark, 10, label_format=50) + labs(title="Correlation-based analysis")
+dotplot.direction(gsea.test$Hallmark, 10, label_format=50) + labs(title="Group-based analysis")
+```
+
+Note that the plots add a "+" or "-" sign to each gene set label to indicate enrichment at the top or bottom end of the ordered gene list, aiding in interpretation of the results.
+We thus observe that the Hallmark EMT gene set appears at/near the top in both analyses, but paradoxically as a positive *and* negative association of drug sensitivity.
+(Further investigation would reveal that enriched EMT genes have lower expression in the "responder" group, but also show overall negative correlations between expression and AUC, consistent with these results.)
