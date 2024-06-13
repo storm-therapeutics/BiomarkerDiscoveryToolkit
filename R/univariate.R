@@ -219,13 +219,12 @@ plot.group <- function(feature, responses, data, stats=NULL, xlab="", ylab="expr
   if (isTRUE(nrow(stats) > 1)) stats <- stats[feature, ]
   plot.data <- data.frame(response=responses, data=data[, feature])
   if (!is.null(stats)) {
-    subtitle <- paste0("p = ", format(stats[["p.value"]], digits=2), ", q = ", format(stats[["p.adj"]], digits=2))
-    if ("LFC" %in% names(stats)) subtitle <- paste0(subtitle, ", LFC = ", format(stats[["LFC"]], digits=2))
+    subtitle <- paste0("p: ", format(stats[["p.value"]], digits=2), ", q: ", format(stats[["p.adj"]], digits=2))
+    if ("LFC" %in% names(stats)) subtitle <- paste0(subtitle, ", LFC: ", format(stats[["LFC"]], digits=2))
   } else subtitle <- ""
   ggpubr::ggboxplot(plot.data, x="response", y="data", add="jitter",
                     add.params=list(alpha=0.2), legend="none", ...) +
-    labs(x=xlab, y=ylab) +
-    ggtitle(feature, subtitle=subtitle)
+    labs(x=xlab, y=ylab, title=feature, subtitle=subtitle)
 }
 
 
