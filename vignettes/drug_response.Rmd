@@ -25,6 +25,11 @@ In a dose response study, it was tested for anti-proliferative effects in a dive
 Using data from this study, we fit dose response curves and thus assess the sensitivity of each tested cell line to the inhibitor.
 Then we look for potential biomarkers of drug sensitivity/resistance in gene expression data.
 The example shown here uses data from all available cell lines, but focusing on subsets (e.g. different tissues/lineages) is easily done using the `sample.names` argument in the main functions (`correlation.analysis()` and `group.analysis()`) used below.
+We start by loading the package:
+
+```{r setup}
+library(BiomarkerDiscoveryToolkit)
+```
 
 ## Dose response curves
 
@@ -33,7 +38,6 @@ For each cell line we fit a curve using the [dr4pl package](https://cran.r-proje
 We then calculate the area under the curve (AUC) for each cell line as a measure of drug sensitivity (lower values mean "more sensitive").
 
 ```{r dose_response, cache=TRUE}
-library(BiomarkerDiscoveryToolkit)
 dr.data <- read.delim(params$dose_response_file) # read tab-delimited file
 curve.fits <- fit.data.long(dr.data, "cellLineName", "conc", "poc", percent=TRUE)
 aucs <- sapply(curve.fits, compute.AUC)
