@@ -41,17 +41,23 @@ Examples of *features* include:
 - Convenient calculation of correlation coefficients for many features
 - Generation of null distributions by permutation
 - Significance estimates
-- Visualization of distributions and top hits
+- Visualization of distributions and top hits (scatter plots)
 
 #### 2. Categorical analysis
 - For categorical response and continuous features
 - Compare feature values grouped by response using statistical tests
-- Visualization of top hits
+- Visualization of top hits (box plots)
 
 #### 3. Analysis of mutation data
 - For continuous response and binary features
 - Compare response values grouped by features using statistical tests
-- Visualization of top hits
+- Visualization of top hits (box plots)
+
+### 4. Survival analysis
+- Responses are surival times or similar (right-censored) time-to-event data
+- Assess features using Cox proportional-hazards regression models
+- Visualization of top hits (Kaplan-Meier curves)
+
 
 ### Enrichment analyses (`enrichment.R`)
 - Gene set enrichment analyses (GSEA; using the [clusterProfiler](https://bioconductor.org/packages/clusterProfiler/) package and others)
