@@ -26,6 +26,7 @@ filter.threshold <- function(data, threshold=1, fraction=1) {
 #' @param responses Named vector
 #' @param data Named matrix
 #' @return List containing responses and data after filtering
+#' @export intersect.samples
 intersect.samples <- function(responses, data) {
   inter <- intersect(names(responses), rownames(data))
   if (length(inter) == 0) stop("No overlapping samples between `responses` and `data`")

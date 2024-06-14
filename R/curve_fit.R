@@ -74,6 +74,7 @@ fit.data.sheets <- function(excel.file, sheets=NULL, dose.col=1, rep.cols=-1, re
 #' @param percent Are response values percentages?
 #' @param ... Additional parameters passed to [dr4pl()]
 #' @return List of `dr4pl` curve fits (or `NULL` for failed fits)
+#' @export
 fit.data.long <- function(data, name.col, dose.col, response.col, percent=FALSE, ...) {
   if (percent) data[[response.col]] <- data[[response.col]] / 100
   grouping <- if (name.col == 0) rownames(data) else data[[name.col]]
