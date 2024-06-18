@@ -257,6 +257,7 @@ mutation.analysis <- function(responses, data, out.prefix="", sample.names=NULL,
 #'
 #' For every column of `data`, a univariate Cox proportional hazard model ([coxph()]) is built to predict `responses`.
 #' Models are ranked according to the significance of the coefficient (feature from `data`).
+#' The "unconditional" survival curve of `responses` is returned as attribute `base.curve` of the result.
 #'
 #' @param responses Named vector of survival times (`survival::Surv()` object)
 #' @param data Named numeric matrix of feature data (e.g. gene expression)
@@ -286,9 +287,9 @@ survival.analysis <- function(responses, data, out.path="survival_analysis.pdf",
   names(models) <- colnames(data)
   pvalues <- sapply(models, function(m) coef(summary(m))[1, 5])
   ord <- order(pvalues)
+  base.curve <- survival::survfit(responses ~ 1)
 
   if (plot) {
-    base.curve <- survival::survfit(responses ~ 1)
     grDevices::pdf(out.path)
     for (i in 1:min(length(models), plot.hits)) {
       plot.cox.pred(models[[ord[i]]], merged, base.curve, ...)
@@ -296,5 +297,7 @@ survival.analysis <- function(responses, data, out.path="survival_analysis.pdf",
     grDevices::dev.off()
   }
 
-  models[ord]
+  res <- models[ord]
+  attr(res, "base.curve") <- base.curve
+  res
 }
