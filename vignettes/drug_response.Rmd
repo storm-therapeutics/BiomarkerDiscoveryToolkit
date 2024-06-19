@@ -162,7 +162,8 @@ It is often useful to aggregate gene-level results to the level of gene sets (e.
 To this end, we define gene-wise scores such that a positive (negative) score indicates an association of drug sensitivity with higher (lower) gene expression:
 
 ```{r gsea_scores}
-scores.cor <- -cors[, "cor.spearman"]; names(scores.cor) <- rownames(cors) # cor.-based analysis
+scores.cor <- -cors[, "cor.spearman"]
+names(scores.cor) <- rownames(cors) # correlation-based analysis
 scores.test <- -log10(stats$p.value) * sign(stats$mean.responder - stats$"mean.non-responder")
 names(scores.test) <- rownames(stats) # group-based analysis
 ```
