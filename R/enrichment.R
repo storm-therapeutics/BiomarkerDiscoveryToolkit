@@ -1,7 +1,47 @@
 ## Functions for biomarker discovery (e.g. for drug sensitivity in cell lines)
 ## Here: gene set enrichment analyses
 
-#' Generate a mapping between gene symbols and Entrez IDs
+#' Extract a gene ranking suitable for GSEA from an analysis result
+#'
+#' @param results Results from an analysis (association finding) function
+#' @param genes Character vector of gene symbols to include (default: use all genes in the results)
+#' @return Numeric vector of sorted scores, named by genes
+#' @export
+get.gsea.input <- function(results, genes=NULL) {
+  ## TODO: assign S3 classes to different types of results, implement separate methods?
+  if (class(results)[1] %in% c("matrix", "data.frame")) {
+    if (startsWith(colnames(results)[1], "cor.")) { # 'correlation.analysis' results
+      scores <- results[, 1]
+    } else if ("statistic" %in% colnames(results)) { # 'group.analysis' results
+      scores <- results[, "statistic"]
+      if (all(scores >= 0)) { # looks like test doesn't differentiate up-/down-regulation (e.g. Wilcoxon test)
+        mean.cols <- which(startsWith(colnames(results), "mean."))
+        if (length(mean.cols) == 2) { # infer direction from difference between means (for exactly two groups)
+          diff <- results[, mean.cols[2]] - results[, mean.cols[1]]
+          scores <- scores * sign(diff)
+        }
+      }
+    } else stop("unexpected format of 'results'")
+    ## TODO: add support for 'mutation.analysis' results
+    names(scores) <- rownames(results)
+  } else if ((class(results) == "list") && all(sapply(results, class) == "coxph")) { # 'survival.analysis' results
+    z.stats <- sapply(results, function(m) coef(summary(m))[1, 4]) # extract Wald statistics
+    scores <- -z.stats # direction: "higher is better" (for survival)
+    names(scores) <- names(results)
+  } else if (class(results)[1] == "DESeqResults") { # DESeq2 results
+    ## this works well for Wald test results, but for LRT the test statistic
+    ## doesn't differentiate between up-/down-regulated genes:
+    scores <- results$stat
+    names(scores) <- rownames(results)
+  }
+  if (!is.null(genes)) {
+    scores <- scores[intersect(names(scores), genes)]
+  }
+  sort(scores, decreasing=TRUE)
+}
+
+
+#' Generate a mapping between human gene symbols and Entrez IDs
 #'
 #' Based on [clusterProfiler::bitr()] and [org.Hs.eg.db::org.Hs.eg.db].
 #'
