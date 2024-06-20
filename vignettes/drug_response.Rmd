@@ -159,23 +159,15 @@ These dissimilar results highlight the value of having multiple complementary an
 ## Gene set enrichments
 
 It is often useful to aggregate gene-level results to the level of gene sets (e.g. pathways, functional annotations).
-To this end, we define gene-wise scores such that a positive (negative) score indicates an association of drug sensitivity with higher (lower) gene expression:
-
-```{r gsea_scores}
-scores.cor <- -cors[, "cor.spearman"]
-names(scores.cor) <- rownames(cors) # correlation-based analysis
-scores.test <- -log10(stats$p.value) * sign(stats$mean.responder - stats$"mean.non-responder")
-names(scores.test) <- rownames(stats) # group-based analysis
-```
-
-We can then easily run gene set enrichment analyses (GSEA) for Gene Ontology ("Biological Process"/"Molecular Function") annotations, Reactome pathways, and MSigDB Hallmark gene sets using one function call:
+To this end, we extract gene rankings from our univariate analysis results and run gene set enrichment analyses (GSEA).
+GSEA for Gene Ontology annotations ("Biological Process" and "Molecular Function"), Reactome pathways, and MSigDB Hallmark gene sets can all be computed using a single function call:
 
 ```{r gsea, message=FALSE, warning=FALSE, cache=TRUE}
-gsea.cor <- gsea.all(scores.cor, out.prefix="")
-gsea.test <- gsea.all(scores.test, out.prefix="")
+gsea.cor <- gsea.all(get.gsea.input(cors), out.prefix="")
+gsea.test <- gsea.all(get.gsea.input(stats), out.prefix="")
 ```
 
-Looking at the top GSEA results for Hallmark gene sets, we observe a limited overlap between our two analyses (EMT, IFNg/estrogen response):
+Looking at the top GSEA results for Hallmark gene sets, we observe a limited overlap between our two analyses (EMT, interferon responses):
 
 <!-- We want the two figures to appear side-by-side: -->
 ```{r gsea_plot, out.width="47%", fig.show="hold", message=FALSE}
