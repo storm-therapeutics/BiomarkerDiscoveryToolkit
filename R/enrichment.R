@@ -144,7 +144,7 @@ dotplot.direction <- function(gse.res, n=15, label_format=40, ...) {
 #' @param out.prefix Path and filename prefix for output files (extensions will be appended)
 #' @param plot Generate PDF file with plots?
 #' @param reactome.mapping Data frame with mapping between gene symbols and Entrez IDs (as returned by [clusterProfiler::bitr()])
-#' @param ... Further parameters passed to the `gsea...()` functions
+#' @param ... Further parameters passed to all underlying `gsea...()` functions, e.g. `pvalue.cutoff`
 #' @return List of GSEA results
 #' @export
 gsea.all <- function(scores, out.prefix="GSEA_results", plot=TRUE,
