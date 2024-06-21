@@ -76,11 +76,13 @@ gsea.go <- function(scores, ontology=c("BP", "CC", "MF", "ALL"), db=org.Hs.eg.db
 #' @param scores Named sorted list of scores for genes
 #' @param gene.sets Data frame of gene sets (as returned by [msigdbr::msigdbr()])
 #' @param pvalue.cutoff p-value cut-off (after multiple testing adjustment)
+#' @param key.type Column in `gene.sets` matching names of `scores`
 #' @param ... Further parameters passed to [GSEA()]
 #' @return GSEA results
 #' @export
-gsea.msigdb <- function(scores, gene.sets=msigdbr::msigdbr(category="H"), pvalue.cutoff=0.05, ...) {
-  clusterProfiler::GSEA(scores, TERM2GENE=gene.sets[, c("gs_name", "human_gene_symbol")],
+gsea.msigdb <- function(scores, gene.sets=msigdbr::msigdbr(category="H"), pvalue.cutoff=0.05,
+                        key.type="human_gene_symbol", ...) {
+  clusterProfiler::GSEA(scores, TERM2GENE=gene.sets[, c("gs_name", key.type)],
                         TERM2NAME=unique(gene.sets[, c("gs_name", "gs_description")]),
                         pvalueCutoff=pvalue.cutoff, eps=0, ...)
 }
@@ -138,7 +140,7 @@ dotplot.direction <- function(gse.res, n=15, label_format=40, ...) {
 #'
 #' Performs GSEA based on GO terms ("biological process" and "molecular function" ontologies), Reactome pathways, and MSigDB Hallmark gene sets.
 #'
-#' @param scores Named list of scores for genes
+#' @param scores Named list of scores for genes (names should be gene symbols)
 #' @param out.prefix Path and filename prefix for output files (extensions will be appended)
 #' @param plot Generate PDF file with plots?
 #' @param reactome.mapping Data frame with mapping between gene symbols and Entrez IDs (as returned by [clusterProfiler::bitr()])
