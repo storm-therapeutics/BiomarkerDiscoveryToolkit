@@ -52,7 +52,7 @@ intersect.samples <- function(responses, data) {
 #' @param data Named numeric matrix of feature data (e.g. gene expression)
 #' @param out.prefix Path and filename prefix for output files (extensions will be appended)
 #' @param sample.names Subset of sample names to use
-#' @param n.null Number of repeats for null distribution
+#' @param n.null Number of repeats for null distribution (`0` to skip p-value estimation)
 #' @param plot Create PDF with plots?
 #' @param plot.cors Number of top hits (pos./neg. correlations) to plot
 #' @param plot.rows Number of rows for arranging plots of top hits
