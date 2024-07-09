@@ -119,7 +119,7 @@ plot.correlation.densities <- function(cor.res, method=NULL) {
   null.densities <- lapply(attr(cor.res, "null.distributions"), function(x) density(x[, method], na.rm=TRUE))
   ## plot real and null distributions:
   ymax <- max(real.density$y, sapply(null.densities, function(d) max(d$y)))
-  plot(real.density, col="red", lwd=2, ylim=c(0, ymax), xlab="correlation coefficient",
+  plot(real.density, col="red", lwd=2, xlim=c(-1, 1), ylim=c(0, ymax), xlab="correlation coefficient",
        main=paste("Distribution of", stringr::str_to_title(method), "correlations"))
   for (d in null.densities) {
     lines(d, col="grey")
