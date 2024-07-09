@@ -50,10 +50,11 @@ intersect.samples <- function(responses, data) {
 #'
 #' @param responses Named numeric vector of responses (e.g. drug effects, genetic dependencies)
 #' @param data Named numeric matrix of feature data (e.g. gene expression)
-#' @param out.prefix Path and filename prefix for output files (extensions will be appended)
+#' @param out.prefix Path and filename prefix for output files (extensions will be appended; default: no file output)
 #' @param sample.names Subset of sample names to use
 #' @param n.null Number of repeats for null distribution (`0` to skip p-value estimation)
-#' @param plot Create PDF with plots?
+#' @param sort Sort results (best first)?
+#' @param plot Create PDF with plots (only if `out.prefix` is not empty)?
 #' @param plot.cors Number of top hits (pos./neg. correlations) to plot
 #' @param plot.rows Number of rows for arranging plots of top hits
 #' @param plot.xlab X axis label for [plot.correlations()] plots
@@ -61,7 +62,7 @@ intersect.samples <- function(responses, data) {
 #' @return Numeric matrix of correlation coefficients and p-values
 #' @export
 correlation.analysis <- function(responses, data, out.prefix="", sample.names=NULL,
-                                 n.null=10, plot=TRUE, plot.cors=15, plot.rows=3,
+                                 n.null=10, sort=TRUE, plot=TRUE, plot.cors=15, plot.rows=3,
                                  plot.xlab="expression", plot.ylab="response") {
   ## match samples:
   ## TODO: move to separate function to avoid copies
@@ -76,10 +77,12 @@ correlation.analysis <- function(responses, data, out.prefix="", sample.names=NU
 
   cor.pvs <- correlations.with.pvalues(responses, data, methods=c("spearman", "pearson"),
                                        n.null=n.null, return.null=plot)
-  ## beware: subsetting loses attributes! - stick them back on afterwards (but don't reset names!):
-  attribs <- attributes(cor.pvs)[c("null.distributions", "null.sd")]
-  cor.pvs <- cor.pvs[order(abs(cor.pvs[, "cor.spearman"]), abs(cor.pvs[, "cor.pearson"]), decreasing=TRUE), ]
-  attributes(cor.pvs)[c("null.distributions", "null.sd")] <- attribs
+  if (sort) {
+    ## beware: subsetting loses attributes! - stick them back on afterwards (but don't reset names!):
+    attribs <- attributes(cor.pvs)[c("null.distributions", "null.sd")]
+    cor.pvs <- cor.pvs[order(abs(cor.pvs[, "cor.spearman"]), abs(cor.pvs[, "cor.pearson"]), decreasing=TRUE), ]
+    attributes(cor.pvs)[c("null.distributions", "null.sd")] <- attribs
+  }
 
   if (out.prefix != "") { # write output file(s)
     utils::write.csv(cor.pvs, paste0(out.prefix, ".csv"))
