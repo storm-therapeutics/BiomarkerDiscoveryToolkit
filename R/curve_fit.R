@@ -139,7 +139,7 @@ plot.curve.fit <- function(dr4pl.fit, auc=NULL, ic50=NULL) {
 
   plot + annotate("label", x=max(dr4pl.fit$data$Dose) / 2, y=max(dr4pl.fit$data$Response),
                   vjust=1, size=5, label.padding=unit(0.3, "lines"),
-                  label=paste0("IC50 = ", round(ic50, 1), "\nAUC = ", round(auc, 3)))
+                  label=paste0(c("IC50", "AUC"), ": ", format(c(ic50, auc), digits=2), collapse="\n"))
 }
 
 
