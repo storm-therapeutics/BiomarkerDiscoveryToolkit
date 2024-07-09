@@ -14,10 +14,11 @@
 #' @param xlab X axis label
 #' @param ylab Y axis label
 #' @param show.n Include number of samples in the annotation?
+#' @param labels.cex Scaling factor for sample labels (default: labels not shown)
 #' @param ... Further arguments passed to [plot()]
 #' @export plot.correlation
 plot.correlation <- function(feature, responses, data, cor.pvs, xlab="expression", ylab="response",
-                             show.n=FALSE, ...) {
+                             show.n=FALSE, labels.cex=0, ...) {
   ## ensure common samples:
   if ((length(responses) != nrow(data)) || !all(names(responses) == rownames(data))) {
     inter <- intersect.samples(responses, data)
@@ -26,13 +27,15 @@ plot.correlation <- function(feature, responses, data, cor.pvs, xlab="expression
   }
   ## if only one value and no name, assume Pearson correlation:
   if ((length(cor.pvs) == 1) && is.null(names(cor.pvs))) names(cor.pvs) <- "cor.pearson"
+  ## 'cor.pvs' should be a vector, but we can also handle a matrix:
+  if (!is.null(dim(cor.pvs)) && (feature %in% rownames(cor.pvs))) cor.pvs <- cor.pvs[feature, ]
   cors <- cor.pvs[grep("^cor\\.", names(cor.pvs))]
   if (length(cors) > 0) {
     methods <- sub("^cor\\.", "", names(cors))
   } else {
     methods <- names(cor.pvs) # e.g. result from `compute.correlations`
   }
-  labels <- sapply(seq_along(methods), function(i) {
+  subtitle <- sapply(seq_along(methods), function(i) {
     if (methods[i] == "pearson") {
       paste("r ==", format(cor.pvs[i], digits=2))
     } else if (methods[i] == "spearman") {
@@ -42,16 +45,19 @@ plot.correlation <- function(feature, responses, data, cor.pvs, xlab="expression
   ## p-value included?
   p.index <- grep("^p\\.", names(cor.pvs))
   if (length(p.index) > 0) {
-    labels <- c(labels, paste("p ==", format(cor.pvs[p.index[1]], digits=2)))
+    subtitle <- c(subtitle, paste("p ==", format(cor.pvs[p.index[1]], digits=2)))
   }
   ## show number of samples?
-  if (show.n) labels <- c(labels, paste("n ==", length(responses)))
+  if (show.n) subtitle <- c(subtitle, paste("n ==", length(responses)))
 
-  labels <- paste0("list(", paste(labels, collapse=", "), ")")
+  subtitle <- paste0("list(", paste(subtitle, collapse=", "), ")")
   if (!is.null(dim(data)) && (ncol(data) > 1)) data <- data[, feature] # vector or matrix/data frame given?
   plot(data, responses, main=paste0(feature, "\n"), xlab=xlab, ylab=ylab, ...)
   grid()
-  mtext(parse(text=labels), adj=0.5, cex=par("cex"))
+  mtext(parse(text=subtitle), adj=0.5, cex=par("cex"))
+  if (labels.cex > 0) {
+    text(data, responses, names(responses), pos=ifelse(data > mean(range(data, na.rm=TRUE)), 2, 4), cex=labels.cex)
+  }
 }
 
 
