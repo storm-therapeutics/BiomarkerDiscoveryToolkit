@@ -46,10 +46,11 @@ get.gsea.input <- function(results, genes=NULL) {
 #' Based on [clusterProfiler::bitr()] and [org.Hs.eg.db::org.Hs.eg.db].
 #'
 #' @param symbols Gene symbols to map
+#' @param db Organism database
 #' @return Data frame wth columns "SYMBOL" and "ENTREZID"
 #' @export
-get.gene.mapping <- function(symbols) {
-  clusterProfiler::bitr(symbols, "SYMBOL", "ENTREZID", org.Hs.eg.db::org.Hs.eg.db, FALSE)
+get.gene.mapping <- function(symbols,db=org.Hs.eg.db::org.Hs.eg.db) {
+  clusterProfiler::bitr(symbols, "SYMBOL", "ENTREZID", db, FALSE)
 }
 
 
@@ -81,7 +82,7 @@ gsea.go <- function(scores, ontology=c("BP", "CC", "MF", "ALL"), db=org.Hs.eg.db
 #' @return GSEA results
 #' @export
 gsea.msigdb <- function(scores, gene.sets=msigdbr::msigdbr(category="H"), pvalue.cutoff=0.05,
-                        key.type="human_gene_symbol", ...) {
+                        key.type="gene_symbol", ...) {
   clusterProfiler::GSEA(scores, TERM2GENE=gene.sets[, c("gs_name", key.type)],
                         TERM2NAME=unique(gene.sets[, c("gs_name", "gs_description")]),
                         pvalueCutoff=pvalue.cutoff, eps=0, ...)
@@ -101,11 +102,10 @@ gsea.msigdb <- function(scores, gene.sets=msigdbr::msigdbr(category="H"), pvalue
 #' @param ... Further parameters passed to [gsePathway()]
 #' @return GSEA results
 #' @export
-gsea.reactome <- function(scores, mapping=get.gene.mapping(names(scores)), replace.ids=TRUE,
-                          pvalue.cutoff=0.05, ...) {
+gsea.reactome <- function(scores,mapping=get.gene.mapping(names(scores),db=org.Hs.eg.db::org.Hs.eg.db), replace.ids=TRUE,pvalue.cutoff=0.05,organism="human",...) {
   if (!is.null(mapping))
     names(scores) <- mapping[match(names(scores), mapping$SYMBOL), "ENTREZID"]
-  gse.res <- ReactomePA::gsePathway(scores, eps=0, pvalueCutoff=pvalue.cutoff, ...)
+  gse.res <- ReactomePA::gsePathway(scores, eps=0, pvalueCutoff=pvalue.cutoff,organism=organism,...)
   if (replace.ids && (nrow(gse.res) > 0)) {
     ids <- strsplit(gse.res@result$core_enrichment, "/")
     genes <- lapply(ids, function(x) mapping[match(x, mapping$ENTREZID), "SYMBOL"])
