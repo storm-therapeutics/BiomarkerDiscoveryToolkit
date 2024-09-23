@@ -46,12 +46,15 @@ get.gsea.input <- function(results, genes=NULL) {
 #' Based on [clusterProfiler::bitr()] and [org.Hs.eg.db::org.Hs.eg.db].
 #'
 #' @param symbols Gene symbols to map
+#' @param organism Organism "human" or "mouse". Default: human
 #' @return Data frame wth columns "SYMBOL" and "ENTREZID"
 #' @export
-get.gene.mapping <- function(symbols) {
-  clusterProfiler::bitr(symbols, "SYMBOL", "ENTREZID", org.Hs.eg.db::org.Hs.eg.db, FALSE)
-}
-
+get.gene.mapping <- function(symbols, organism="human") {
+  if (organism=="human")
+    clusterProfiler::bitr(symbols, "SYMBOL", "ENTREZID", org.Hs.eg.db::org.Hs.eg.db, FALSE)
+  if (organism=="mouse")
+      clusterProfiler::bitr(symbols, "SYMBOL", "ENTREZID", org.Mm.eg.db::org.Mm.eg.db, FALSE)
+    }
 
 #' Gene set enrichment analysis on Gene Ontology terms
 #'
@@ -86,6 +89,13 @@ gsea.msigdb <- function(scores, gene.sets=msigdbr::msigdbr(category="H"), pvalue
                         TERM2NAME=unique(gene.sets[, c("gs_name", "gs_description")]),
                         pvalueCutoff=pvalue.cutoff, eps=0, ...)
 }
+
+
+
+  gsea.msigdb <- function(scores, gene.sets=msigdbr::msigdbr(category="H"), pvalue.cutoff=0.05, ...) {
+        clusterProfiler::GSEA(scores, TERM2GENE=gene.sets[, c("gs_name", "gene_symbol")],
+        TERM2NAME=unique(gene.sets[, c("gs_name", "gs_description")]), pvalueCutoff=pvalue.cutoff, eps=0, ...)
+    }
 
 
 #' Gene set enrichment analysis on Reactome pathways
