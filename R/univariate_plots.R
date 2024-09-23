@@ -136,9 +136,11 @@ plot.group <- function(feature, responses, data, stats=NULL, xlab="", ylab="expr
       subtitle <- paste0(subtitle, ", LFC: ", format(stats[[lfc.col[1]]], digits=2))
     }
   } else subtitle <- ""
+
+  colors= grayzz<- brewer.pal(5, "RdGy")[c(1,5)]
+
   ggpubr::ggboxplot(plot.data, x="response", y="data", add="jitter",
-                    add.params=list(alpha=0.2), legend="none", ...) +
-    labs(x=xlab, y=ylab, title=feature, subtitle=subtitle)
+                    add.params=list(alpha=0.2), legend="none", ...)+ scale_colour_manual(values=colors) + labs(x=xlab, y=ylab, title=feature, subtitle=subtitle)
 }
 
 
