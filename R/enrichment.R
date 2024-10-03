@@ -187,3 +187,25 @@ gsea.all <- function(scores, out.prefix="GSEA_results", plot=TRUE,
 
   invisible(list(GO.BP=gse.go.bp, GO.MF=gse.go.mf, Reactome=gse.reactome, Hallmark=gse.hallmark))
 }
+
+
+#' Run a gene set enrichment analysis for custom gene sets
+#'
+#' Wrapper around function [clusterProfiler::GSEA()].
+#'
+#' @param scores Named list of scores for genes (names should be gene symbols)
+#' @param gene.lists Named list of gene sets (character vectors)
+#' @param descriptions Optional character vector of descriptions for the gene sets (will replace the names on `gene.lists` in output)
+#' @param pvalue.cutoff p-value cut-off (after multiple testing adjustment)
+#' @param ... Further parameters passed to [clusterProfiler::GSEA()]
+#' @return GSEA results
+#' @export
+gsea.custom <- function(scores, gene.lists, descriptions=NULL, pvalue.cutoff=0.05, ...) {
+  if (!is.null(descriptions)) {
+    stopifnot(length(gene.lists) == length(descriptions))
+    term2name <- data.frame(term=names(gene.lists), name=descriptions)
+  } else term2name <- NA
+  term2gene <- data.frame(term=rep(names(gene.lists), lengths(gene.lists)), gene=unlist(gene.lists))
+  clusterProfiler::GSEA(scores, TERM2GENE=term2gene, TERM2NAME=term2name,
+                        pvalueCutoff=pvalue.cutoff, eps=0, ...)
+}
