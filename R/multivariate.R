@@ -76,7 +76,7 @@ multivariate.analysis <- function(responses, data, n.features=c(5, 10, 20, 50, 1
 #' @param n.feat Number of features to use (default: optimum as selected by caret)
 #' @param label Label for responses (type of data)
 #' @param ... Additional parameters passed to [plot()], e.g. `asp=1`
-#' @export
+#' @export plot.predictions
 plot.predictions <- function(rfe, n.feat=NULL, label="", ...) {
   if (is.null(n.feat)) n.feat <- rfe$bestSubset # or 'optsize' (why do both exist?)
   pred <- rfe$pred[rfe$pred$Variables == n.feat, ]
@@ -118,7 +118,7 @@ get.feature.ranking <- function(rfe, return.means=TRUE) {
 #'
 #' @param rfe RFE object (result from [multivariate.analysis()])
 #' @param n.feat Number of features to show (default: optimum as selected by caret)
-#' @export
+#' @export plot.feature.ranking
 plot.feature.ranking <- function(rfe, n.feat=NULL) {
   ranking <- get.feature.ranking(rfe, FALSE)
   if (is.null(n.feat)) {
