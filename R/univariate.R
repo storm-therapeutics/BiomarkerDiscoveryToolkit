@@ -52,7 +52,9 @@ intersect.samples <- function(responses, data) {
 #' @param data Named numeric matrix of feature data (e.g. gene expression)
 #' @param out.prefix Path and filename prefix for output files (extensions will be appended; default: no file output)
 #' @param sample.names Subset of sample names to use
+#' @param min.samples Minimum number of samples that must be available (not `NA`) for a feature to be included
 #' @param n.null Number of repeats for null distribution (`0` to skip p-value estimation)
+#' @param per.feature Estimate null distributions separately for each feature?
 #' @param sort Sort results (best first)?
 #' @param plot Create PDF with plots (only if `out.prefix` is not empty)?
 #' @param plot.cors Number of top hits (pos./neg. correlations) to plot
@@ -61,8 +63,8 @@ intersect.samples <- function(responses, data) {
 #' @param plot.ylab Y axis label for [plot.correlations()] plots
 #' @return Numeric matrix of correlation coefficients and p-values
 #' @export
-correlation.analysis <- function(responses, data, out.prefix="", sample.names=NULL,
-                                 n.null=10, sort=TRUE, plot=TRUE, plot.cors=15, plot.rows=3,
+correlation.analysis <- function(responses, data, out.prefix="", sample.names=NULL, min.samples=10,
+                                 n.null=10, per.feature=FALSE, sort=TRUE, plot=TRUE, plot.cors=15, plot.rows=3,
                                  plot.xlab="expression", plot.ylab="response") {
   ## match samples:
   ## TODO: move to separate function to avoid copies
@@ -75,19 +77,37 @@ correlation.analysis <- function(responses, data, out.prefix="", sample.names=NU
     data <- inter$data
   }
 
-  cor.pvs <- correlations.with.pvalues(responses, data, methods=c("spearman", "pearson"),
-                                       n.null=n.null, return.null=plot)
-  if (sort) {
-    ## beware: subsetting loses attributes! - stick them back on afterwards (but don't reset names!):
-    attribs <- attributes(cor.pvs)[c("null.distributions", "null.sd")]
-    cor.pvs <- cor.pvs[order(abs(cor.pvs[, "cor.spearman"]), abs(cor.pvs[, "cor.pearson"]), decreasing=TRUE), ]
-    attributes(cor.pvs)[c("null.distributions", "null.sd")] <- attribs
+  ## handle NAs:
+  ind <- is.na(responses)
+  if (any(ind)) {
+    warning("Removing ", sum(ind), " samples with missing (NA) response values")
+    responses <- responses[!ind]
+    data <- data[!ind, ]
   }
+  n.complete <- apply(data, 2, function(col) sum(!is.na(col)))
+  if (min.samples > 1) {
+    ind <- n.complete < min.samples
+    if (any(ind)) {
+      warning("Removing ", sum(ind), " features with less than ", min.samples, " complete (non-NA) values")
+      data <- data[, !ind]
+      n.complete <- n.complete[!ind]
+    }
+  }
+
+  cor.pvs <- correlations.with.pvalues(responses, data, methods=c("spearman", "pearson"),
+                                       n.null=n.null, per.feature=per.feature, return.null=plot)
+  ## beware: attributes get lost - stick them back on later (but don't reset names!):
+  attribs <- attributes(cor.pvs)[c("null.distributions", "null.sd")]
+  cor.pvs <- cbind(cor.pvs, n.samples=n.complete)
+  if (sort) {
+    cor.pvs <- cor.pvs[order(abs(cor.pvs[, "cor.spearman"]), abs(cor.pvs[, "cor.pearson"]), decreasing=TRUE), ]
+  }
+  attributes(cor.pvs)[c("null.distributions", "null.sd")] <- attribs
 
   if (out.prefix != "") { # write output file(s)
     utils::write.csv(cor.pvs, paste0(out.prefix, ".csv"))
 
-    if (plot) { # plot to PDF file
+    if (plot && (!per.feature || (plot.cors > 0))) { # plot to PDF file
       grDevices::pdf(paste0(out.prefix, ".pdf"), paper="a4r", height=0, width=0)
       on.exit(grDevices::dev.off())
       plot.correlation.densities(cor.pvs, "spearman")
@@ -155,7 +175,8 @@ group.analysis <- function(responses, data, out.prefix=NULL, sample.names=NULL, 
   ## run statistical test for every column of `data`, comparing distributions according to grouping in `responses`
   results <- lapply(colnames(data), function(feature) {
     f <- formula(paste0("`", feature, "` ~ response"))
-    stats <- test(f, data=fullFrame, ...)
+    ## TODO: return 'NULL' if test fails (i.e. remove feature from results)?
+    stats <- tryCatch(test(f, data=fullFrame, ...), error=function(e) list(statistic=NA, p.value=NA))
     tab <- table(responses[!is.na(data[, feature])])
     names(tab) <- paste0("n.", names(tab))
     means <- tapply(data[, feature], responses, mean, na.rm=TRUE)
@@ -171,17 +192,19 @@ group.analysis <- function(responses, data, out.prefix=NULL, sample.names=NULL, 
   sortedFrame <- thelper[order(thelper$p.value), ]
 
   ## write output file if out.prefix is set (CSV)
-  if (!is.null(out.prefix))
-    utils::write.csv(sortedFrame, file=file.path(out.prefix, ".csv"))
+  if (!is.null(out.prefix)) {
+    utils::write.csv(sortedFrame, file=paste0(out.prefix, ".csv"))
 
-  ## plot top results (depending on `plot` and other plot parameters)
-  ## TODO: write plot to PDF
-  if (plot)
-  {
-    plot.groups(stats, responses, data, 1:plot.hits, plot.rows, "Top hits by p-value", plot.xlab, plot.ylab)
+    ## plot top results (depending on `plot` and other plot parameters)
+    if (plot)
+    {
+      grDevices::pdf(paste0(out.prefix, ".pdf"), paper="a4r", height=0, width=0)
+      on.exit(grDevices::dev.off())
+      print(plot.groups(sortedFrame, responses, data, 1:plot.hits, plot.rows, "Top hits by p-value",
+                        plot.xlab, plot.ylab))
     #library(gridExtra)
-
     #ggsave(filename = file.path("test.pdf"), plot = marrangeGrob(plots, nrow=plot.rows ,byrow=TRUE), width = 20, height = 20)
+    }
   }
   invisible(sortedFrame)
 }
