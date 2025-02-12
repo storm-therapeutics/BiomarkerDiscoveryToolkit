@@ -64,11 +64,12 @@ estimate.pvalue <- function(x, sd) {
 #' @param mat Numeric matrix
 #' @param ... Further arguments passed to [compute.correlations()] and [get.null.correlations()]
 #' @param n.null Number of repeats for the null distribution
+#' @param per.feature Estimate null distributions separately for each feature?
 #' @param return.null If `TRUE`, return details about the null distributions as attributes of the result
 #'
 #' @return Data frame with correlation coefficients and their p-values (in separate columns)
 #' @export
-correlations.with.pvalues <- function(vec, mat, ..., n.null=10, return.null=FALSE) {
+correlations.with.pvalues <- function(vec, mat, ..., n.null=10, per.feature=FALSE, return.null=FALSE) {
   cors <- compute.correlations(vec, mat, ...)
   methods <- colnames(cors)
   if (n.null == 0) { # skip null distributions/p-values
@@ -78,16 +79,29 @@ correlations.with.pvalues <- function(vec, mat, ..., n.null=10, return.null=FALS
 
   message("Generating null distributions: ", appendLF=FALSE)
   cors.null <- get.null.correlations(n.null, vec, mat, ...)
-  ## standard deviations of null distributions:
-  sd.null <- sapply(methods, function(method) {
-    sds <- sapply(cors.null, function(x) sd(x[, method], na.rm=TRUE))
-    mean(sds)
-  })
-  ## estimate p-values:
-  cor.pvs <- sapply(methods, function(method) {
-    pvalues <- estimate.pvalue(cors[, method], sd.null[method])
-    pvalues
-  })
+  message()
+  ## TODO: calculate standard deviations using fixed mean of 0?
+  if (!per.feature) {
+    ## standard deviations of null distributions (averaged over all features):
+    sd.null <- sapply(methods, function(method) {
+      sds <- sapply(cors.null, function(x) sd(x[, method], na.rm=TRUE))
+      mean(sds)
+    })
+    ## estimate p-values:
+    cor.pvs <- sapply(methods, function(method) {
+      estimate.pvalue(cors[, method], sd.null[method])
+    })
+  } else {
+    ## standard deviations of null distributions - for each feature:
+    sd.null <- sapply(methods, function(method) {
+      merged <- sapply(cors.null, function(x) x[, method])
+      apply(merged, 1, sd, na.rm=TRUE)
+    })
+    ## estimate p-values:
+    cor.pvs <- sapply(methods, function(method) {
+      estimate.pvalue(cors[, method], sd.null[, method])
+    })
+  }
   colnames(cor.pvs) <- paste0("p.", methods)
   colnames(cors) <- paste0("cor.", methods)
   res <- cbind(cors, cor.pvs)
@@ -119,17 +133,22 @@ plot.correlation.densities <- function(cor.res, method=NULL) {
   null.densities <- lapply(attr(cor.res, "null.distributions"), function(x) density(x[, method], na.rm=TRUE))
   ## plot real and null distributions:
   ymax <- max(real.density$y, sapply(null.densities, function(d) max(d$y)))
-  plot(real.density, col="red", lwd=2, xlim=c(-1, 1), ylim=c(0, ymax), xlab="correlation coefficient",
+  plot(NULL, xlim=c(-1, 1), ylim=c(-0.2, ymax), xlab="correlation coefficient", ylab="density",
        main=paste("Distribution of", stringr::str_to_title(method), "correlations"))
   for (d in null.densities) {
     lines(d, col="grey")
   }
-  ## plot normal approximation to null distributions:
+  lines(real.density, col="red", lwd=2) # plot this last so it's on top
+  labels <- c("real data", paste0("random permutation (x", length(null.densities), ")"))
+  colors <- c("red", "grey")
+  ## plot normal approximation to null distributions (unless estimated per-feature):
   sd.null <- attr(cor.res, "null.sd")
-  curve(dnorm(x, sd=sd.null), add=TRUE, col="blue")
-  labels <- c("real data", paste0("random permutation (x", length(null.densities), ")"),
-              paste0("normal approx. (sd=", format(sd.null[method], digits=3), ")"))
-  legend("topleft", labels, lty=1, col=c("red", "grey", "blue"))
+  if (is.null(dim(sd.null))) { # vector or matrix of standard deviations?
+    curve(dnorm(x, sd=sd.null[method]), add=TRUE, col="blue")
+    labels <- c(labels, paste0("normal approx. (sd=", format(sd.null[method], digits=3), ")"))
+    colors <- c(colors, "blue")
+  }
+  legend("topleft", labels, lty=1, col=colors)
   ## show real correlation coefficients on x axis:
   points(real.cors, rep(-0.2, length(real.cors)), pch="|", cex=0.5)
   abline(v=0, lty=3)
