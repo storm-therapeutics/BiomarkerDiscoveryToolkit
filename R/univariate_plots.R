@@ -68,7 +68,7 @@ plot.correlation <- function(feature, responses, data, cor.pvs, xlab="expression
 #' @param cor.pvs Named vector or matrix of correlation coefficients (and pvalues, optionally)
 #' @param responses Vector of response values (shown on y axis)
 #' @param data Matrix of feature values (shown on x axis)
-#' @param which Indexes selecting which results (features) to plot
+#' @param which Indexes or names selecting which results (features) to plot
 #' @param rows Number of rows of plots
 #' @param title Plot title (default: automatically generated)
 #' @param xlab X axis label
@@ -79,7 +79,11 @@ plot.correlations <- function(cor.pvs, responses, data, which=1:10, rows=2,
                               title=NULL, xlab="expression", ylab="response", ...) {
   if (is.null(dim(cor.pvs))) cor.pvs <- as.matrix(cor.pvs, ncol=1)
   ## check that values in `which` are valid indexes:
-  valid <- intersect(1:nrow(cor.pvs), which)
+  if (is.integer(which)) {
+    valid <- intersect(1:nrow(cor.pvs), which)
+  } else if (is.character(which)) {
+    valid <- na.omit(match(which, rownames(cor.pvs)))
+  } else valid <- c()
   if (length(valid) == 0) stop("No valid entries in 'which'")
   if (length(valid) != length(which)) warning("Not all entries in 'which' are valid")
 
