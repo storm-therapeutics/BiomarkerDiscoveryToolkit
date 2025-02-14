@@ -110,13 +110,15 @@ correlation.analysis <- function(responses, data, out.prefix="", sample.names=NU
     if (plot && (!per.feature || (plot.cors > 0))) { # plot to PDF file
       grDevices::pdf(paste0(out.prefix, ".pdf"), paper="a4r", height=0, width=0)
       on.exit(grDevices::dev.off())
-      plot.correlation.densities(cor.pvs, "spearman")
-      plot.correlation.densities(cor.pvs, "pearson")
+      if (n.null > 0) {
+        plot.correlation.densities(cor.pvs, "spearman")
+        plot.correlation.densities(cor.pvs, "pearson")
+      }
       if (plot.cors > 0) {
         is.negative <- cor.pvs[, "cor.spearman"] < 0
-        plot.correlations(cor.pvs[!is.negative, ], responses, data, 1:plot.cors, plot.rows,
+        plot.correlations(cor.pvs[!is.negative, , drop=FALSE], responses, data, 1:plot.cors, plot.rows,
                           "Top positive correlations", xlab=plot.xlab, ylab=plot.ylab)
-        plot.correlations(cor.pvs[is.negative, ], responses, data, 1:plot.cors, plot.rows,
+        plot.correlations(cor.pvs[is.negative, , drop=FALSE], responses, data, 1:plot.cors, plot.rows,
                           "Top negative correlations", xlab=plot.xlab, ylab=plot.ylab)
       }
     }
