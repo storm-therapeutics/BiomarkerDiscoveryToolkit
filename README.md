@@ -26,6 +26,17 @@ Examples of *features* include:
   - Mutations
   - Copy numbers
   - Protein expression
+ 
+## Using the package
+
+To use the in-development package, clone the Git repository to a local directory.
+Then run this in an R session (requires package [devtools](https://cran.r-project.org/package=devtools)):
+```r
+wd <- getwd() # save current working directory
+setwd("/path/to/BiomarkerDiscoveryToolkit")
+devtools::load_all()
+setwd(wd) # restore current working directory
+```
 
 ## Current functionality
 
