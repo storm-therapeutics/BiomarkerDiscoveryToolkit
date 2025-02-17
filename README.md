@@ -26,6 +26,17 @@ Examples of *features* include:
   - Mutations
   - Copy numbers
   - Protein expression
+ 
+## Using the package
+
+To use the in-development package, clone the Git repository to a local directory.
+Then run this in an R session (requires package [devtools](https://cran.r-project.org/package=devtools)):
+```r
+wd <- getwd() # save current working directory
+setwd("/path/to/BiomarkerDiscoveryToolkit")
+devtools::load_all()
+setwd(wd) # restore current working directory
+```
 
 ## Current functionality
 
@@ -58,12 +69,15 @@ Examples of *features* include:
 - Assess features using Cox proportional-hazards regression models
 - Visualization of top hits (Kaplan-Meier curves)
 
-
 ### Enrichment analyses (`enrichment.R`)
 - Gene set enrichment analyses (GSEA; using the [clusterProfiler](https://bioconductor.org/packages/clusterProfiler/) package and others)
 - Gene Ontology, Reactome and MSigDB gene sets
 - Visualization using dot plots (with indication of directionality)
 
+### Multivariate analysis
+- Random forest models (using the [randomForest](https://cran.r-project.org/package=randomForest) package)
+- Trained using cross-validation and backwards feature elimination (powered by the [caret](https://cran.r-project.org/package=caret) package)
+- Visualization of prediction performance and feature importance
+
 ## Planned functionality
-- Multivariate prediction models with measures of feature importance (e.g. random forests)
 - R package to be submitted to CRAN or Bioconductor
