@@ -161,10 +161,10 @@ gsea.all <- function(scores, out.prefix="GSEA_results", plot=TRUE,
   gse.hallmark <- gsea.msigdb(scores, ...)
 
   if (nchar(out.prefix) > 0) {
-    utils::write.csv(gse.go.bp@result, paste0(out.prefix, "_GO-BP.csv"))
-    utils::write.csv(gse.go.mf@result, paste0(out.prefix, "_GO-MF.csv"))
-    utils::write.csv(gse.reactome@result, paste0(out.prefix, "_Reactome.csv"))
-    utils::write.csv(gse.hallmark@result, paste0(out.prefix, "_Hallmark.csv"))
+    utils::write.csv(gse.go.bp@result, paste0(out.prefix, "_GO-BP.csv"), row.names=FALSE)
+    utils::write.csv(gse.go.mf@result, paste0(out.prefix, "_GO-MF.csv"), row.names=FALSE)
+    utils::write.csv(gse.reactome@result, paste0(out.prefix, "_Reactome.csv"), row.names=FALSE)
+    utils::write.csv(gse.hallmark@result, paste0(out.prefix, "_Hallmark.csv"), row.names=FALSE)
 
     if (plot) {
       grDevices::pdf(paste0(out.prefix, ".pdf"))
