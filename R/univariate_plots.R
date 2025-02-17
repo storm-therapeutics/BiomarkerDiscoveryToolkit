@@ -188,7 +188,7 @@ plot.groups <- function(stats, responses, data, which=1:10, rows=2, title=NULL,
 #' @export plot.cox.pred
 plot.cox.pred <- function(model, data, base.curve=NULL, quantiles=c(low=0.25, high=0.75),
                           xlab="Time", ylab="Fraction surviving") {
-  feature <- names(coef(model))
+  feature <- gsub("^`|`$", "", names(coef(model))) # remove quotes around feature names with symbols (e.g. "-")
   values <- data.frame(quantile(data[, feature], quantiles))
   names(values) <- feature
   cols <- if (nrow(values) == 2) c(4, 2) else (1:nrow(values)) + 1
