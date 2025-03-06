@@ -27,6 +27,7 @@ Imports:
     grDevices,
     msigdbr,
     org.Hs.eg.db,
+    org.Mm.eg.db,
     randomForest,
     ReactomePA,
     readxl,
