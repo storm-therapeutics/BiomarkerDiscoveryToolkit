@@ -145,19 +145,21 @@ dotplot.direction <- function(gse.res, n=15, label_format=40, ...) {
 #' @param out.prefix Path and filename prefix for output files (extensions will be appended)
 #' @param plot Generate PDF file with plots?
 #' @param reactome.mapping Data frame with mapping between gene symbols and Entrez IDs (as returned by [clusterProfiler::bitr()]; default: generated automatically using [get.gene.mapping()])
+#' @param species Species of origin for genes
 #' @param ... Further parameters passed to all underlying `gsea...()` functions, e.g. `pvalue.cutoff`
 #' @return List of GSEA results
 #' @export
 gsea.all <- function(scores, out.prefix="GSEA_results", plot=TRUE,
                      reactome.mapping=NULL, species=c("human", "mouse"), ...) {
   scores <- na.omit(sort(scores, decreasing=TRUE))
-  if (species[1] == "human") {
+  species <- species[1]
+  if (species == "human") {
     org.db <- org.Hs.eg.db::org.Hs.eg.db
     taxon <- "Homo sapiens"
-  } else if (species[1] == "mouse") {
+  } else if (species == "mouse") {
     org.db <- org.Mm.eg.db::org.Mm.eg.db
     taxon <- "Mus musculus"
-  } else stop("Species '", species[1], "' not supported")
+  } else stop("Species '", species, "' not supported")
   if (is.null(reactome.mapping)) {
     get.gene.mapping(names(scores), org.db)
   }
