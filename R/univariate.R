@@ -156,6 +156,7 @@ correlation.analysis <- function(responses, data, out.prefix="", sample.names=NU
 #'data=readRDS("data/data_group.rds")
 #'check=group.analysis(data=data,responses=responses)
 #'}
+## TODO: add parameter for "min. samples per group" (excl. NAs)
 group.analysis <- function(responses, data, out.prefix=NULL, sample.names=NULL, test=NULL, p.adj.method="BH",
                            plot=(!is.null(out.prefix)), plot.hits=15, plot.rows=3,
                            plot.xlab="", plot.ylab="expression", ...) {

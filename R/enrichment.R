@@ -41,15 +41,16 @@ get.gsea.input <- function(results, genes=NULL) {
 }
 
 
-#' Generate a mapping between human gene symbols and Entrez IDs
+#' Generate a mapping between gene symbols and Entrez IDs
 #'
-#' Based on [clusterProfiler::bitr()] and [org.Hs.eg.db::org.Hs.eg.db].
+#' Based on [clusterProfiler::bitr()] and AnnotationDbi organism databases.
 #'
 #' @param symbols Gene symbols to map
+#' @param org.db Organism-specific gene database (e.g. [org.Hs.eg.db::org.Hs.eg.db] for human, [org.Mm.eg.db::org.Mm.eg.db] for mouse)
 #' @return Data frame wth columns "SYMBOL" and "ENTREZID"
 #' @export
-get.gene.mapping <- function(symbols) {
-  clusterProfiler::bitr(symbols, "SYMBOL", "ENTREZID", org.Hs.eg.db::org.Hs.eg.db, FALSE)
+get.gene.mapping <- function(symbols, org.db=org.Hs.eg.db::org.Hs.eg.db) {
+  clusterProfiler::bitr(symbols, "SYMBOL", "ENTREZID", org.db, FALSE)
 }
 
 
@@ -59,15 +60,15 @@ get.gene.mapping <- function(symbols) {
 #'
 #' @param scores Named sorted list of scores for genes
 #' @param ontology Subontology to use, or "ALL"
-#' @param db Organism database
+#' @param org.db Organism-specific gene database (e.g. [org.Hs.eg.db::org.Hs.eg.db] for human, [org.Mm.eg.db::org.Mm.eg.db] for mouse)
 #' @param pvalue.cutoff p-value cut-off (after multiple testing adjustment)
 #' @param key.type Key type used to map names of `scores` to entries in `db`
 #' @param ... Further parameters passed to [gseGO()]
 #' @return GSEA results
 #' @export
-gsea.go <- function(scores, ontology=c("BP", "CC", "MF", "ALL"), db=org.Hs.eg.db::org.Hs.eg.db,
+gsea.go <- function(scores, ontology=c("BP", "CC", "MF", "ALL"), org.db=org.Hs.eg.db::org.Hs.eg.db,
                     pvalue.cutoff=0.05, key.type="SYMBOL", ...) {
-  clusterProfiler::gseGO(scores, ontology[1], db, keyType=key.type, eps=0, pvalueCutoff=pvalue.cutoff, ...)
+  clusterProfiler::gseGO(scores, ontology[1], org.db, keyType=key.type, eps=0, pvalueCutoff=pvalue.cutoff, ...)
 }
 
 
@@ -81,7 +82,7 @@ gsea.go <- function(scores, ontology=c("BP", "CC", "MF", "ALL"), db=org.Hs.eg.db
 #' @return GSEA results
 #' @export
 gsea.msigdb <- function(scores, gene.sets=msigdbr::msigdbr(category="H"), pvalue.cutoff=0.05,
-                        key.type="human_gene_symbol", ...) {
+                        key.type="gene_symbol", ...) {
   clusterProfiler::GSEA(scores, TERM2GENE=gene.sets[, c("gs_name", key.type)],
                         TERM2NAME=unique(gene.sets[, c("gs_name", "gs_description")]),
                         pvalueCutoff=pvalue.cutoff, eps=0, ...)
@@ -98,7 +99,7 @@ gsea.msigdb <- function(scores, gene.sets=msigdbr::msigdbr(category="H"), pvalue
 #' @param mapping Data frame with mapping between gene symbols and Entrez IDs (as returned by [bitr()])
 #' @param replace.ids Replace Entrez IDs in results with gene symbols?
 #' @param pvalue.cutoff p-value cut-off (after multiple testing adjustment)
-#' @param ... Further parameters passed to [gsePathway()]
+#' @param ... Further parameters passed to [gsePathway()], e.g. `organism="mouse"`
 #' @return GSEA results
 #' @export
 gsea.reactome <- function(scores, mapping=get.gene.mapping(names(scores)), replace.ids=TRUE,
@@ -143,22 +144,34 @@ dotplot.direction <- function(gse.res, n=15, label_format=40, ...) {
 #' @param scores Named list of scores for genes (names should be gene symbols)
 #' @param out.prefix Path and filename prefix for output files (extensions will be appended)
 #' @param plot Generate PDF file with plots?
-#' @param reactome.mapping Data frame with mapping between gene symbols and Entrez IDs (as returned by [clusterProfiler::bitr()])
+#' @param reactome.mapping Data frame with mapping between gene symbols and Entrez IDs (as returned by [clusterProfiler::bitr()]; default: generated automatically using [get.gene.mapping()])
+#' @param species Species of origin for genes
 #' @param ... Further parameters passed to all underlying `gsea...()` functions, e.g. `pvalue.cutoff`
 #' @return List of GSEA results
 #' @export
 gsea.all <- function(scores, out.prefix="GSEA_results", plot=TRUE,
-                     reactome.mapping=get.gene.mapping(names(scores)), ...) {
+                     reactome.mapping=NULL, species=c("human", "mouse"), ...) {
   scores <- na.omit(sort(scores, decreasing=TRUE))
+  species <- species[1]
+  if (species == "human") {
+    org.db <- org.Hs.eg.db::org.Hs.eg.db
+    taxon <- "Homo sapiens"
+  } else if (species == "mouse") {
+    org.db <- org.Mm.eg.db::org.Mm.eg.db
+    taxon <- "Mus musculus"
+  } else stop("Species '", species, "' not supported")
+  if (is.null(reactome.mapping)) {
+    get.gene.mapping(names(scores), org.db)
+  }
 
   message("GSEA: Gene Ontology (Biological Process)...")
-  gse.go.bp <- gsea.go(scores, "BP", ...)
+  gse.go.bp <- gsea.go(scores, "BP", org.db=org.db, ...)
   message("GSEA: Gene Ontology (Molecular Function)...")
-  gse.go.mf <- gsea.go(scores, "MF", ...)
+  gse.go.mf <- gsea.go(scores, "MF", org.db=org.db, ...)
   message("GSEA: Reactome pathways...")
-  gse.reactome <- gsea.reactome(scores, mapping=reactome.mapping, ...)
+  gse.reactome <- gsea.reactome(scores, mapping=reactome.mapping, organism=species, ...)
   message("GSEA: Hallmark gene sets...")
-  gse.hallmark <- gsea.msigdb(scores, ...)
+  gse.hallmark <- gsea.msigdb(scores, gene.sets=msigdbr::msigdbr(species=taxon, category="H"), ...)
 
   if (nchar(out.prefix) > 0) {
     utils::write.csv(gse.go.bp@result, paste0(out.prefix, "_GO-BP.csv"), row.names=FALSE)
