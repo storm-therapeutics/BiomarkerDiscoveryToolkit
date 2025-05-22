@@ -115,10 +115,11 @@ plot.correlations <- function(cor.pvs, responses, data, which=1:10, rows=2,
 #' @param stats Test statistics as returned by [group.analysis()] or [DESeq2::results()]
 #' @param xlab X axis label
 #' @param ylab Y axis label
+#' @param mean.color Color for line showing group mean (default: not shown)
 #' @param ... Further arguments passed to [ggpubr::ggboxplot()]
 #' @return Boxplot object
 #' @export plot.group
-plot.group <- function(feature, responses, data, stats=NULL, xlab="", ylab="expression", ...) {
+plot.group <- function(feature, responses, data, stats=NULL, xlab="", ylab="expression", mean.color="", ...) {
   ## ensure common samples:
   if ((length(responses) != nrow(data)) || !all(names(responses) == rownames(data))) {
     inter <- intersect.samples(responses, data)
@@ -140,9 +141,14 @@ plot.group <- function(feature, responses, data, stats=NULL, xlab="", ylab="expr
       subtitle <- paste0(subtitle, ", LFC: ", format(stats[[lfc.col[1]]], digits=2))
     }
   } else subtitle <- ""
-  ggpubr::ggboxplot(plot.data, x="response", y="data", add="jitter",
-                    add.params=list(alpha=0.2), legend="none", ...) +
+  plot <- ggpubr::ggboxplot(plot.data, x="response", y="data", add=c("jitter"),
+                            add.params=list(alpha=0.2), legend="none", ...) +
     labs(x=xlab, y=ylab, title=feature, subtitle=subtitle)
+  if (mean.color != "") { # add mean line
+    plot <- plot + stat_summary(geom="errorbar", fun.min=mean, fun=mean, fun.max=mean, width=0.7, linetype="dashed",
+                                color=mean.color)
+  }
+  plot
 }
 
 
