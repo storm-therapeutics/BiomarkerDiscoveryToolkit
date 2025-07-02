@@ -161,7 +161,7 @@ gsea.all <- function(scores, out.prefix="GSEA_results", plot=TRUE,
     taxon <- "Mus musculus"
   } else stop("Species '", species, "' not supported")
   if (is.null(reactome.mapping)) {
-    get.gene.mapping(names(scores), org.db)
+    reactome.mapping <- get.gene.mapping(names(scores), org.db)
   }
 
   message("GSEA: Gene Ontology (Biological Process)...")
