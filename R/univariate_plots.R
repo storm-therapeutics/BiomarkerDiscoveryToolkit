@@ -140,6 +140,10 @@ plot.group <- function(feature, responses, data, stats=NULL, xlab="", ylab="expr
     if (length(lfc.col) > 0) {
       subtitle <- paste0(subtitle, ", LFC: ", format(stats[[lfc.col[1]]], digits=2))
     }
+    if ("delta" %in% names(stats)) {
+      subtitle <- paste0(subtitle, ", Delta: ", format(stats[["delta"]], digits=2))
+      subtitle <- parse(text=paste0("list(", subtitle, ")"))
+    }
   } else subtitle <- ""
   plot <- ggpubr::ggboxplot(plot.data, x="response", y="data", add=c("jitter"),
                             add.params=list(alpha=0.2), legend="none", ...) +
