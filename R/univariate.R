@@ -230,13 +230,13 @@ group.analysis <- function(responses, data, out.prefix=NULL, sample.names=NULL, 
 #' @param plot.ylab Y axis label for plots
 #' @return Data frame of results (p-values and basic statistics)
 #' @export
-mutation.analysis <- function(responses, data, out.prefix="", sample.names=NULL, test=wilcox.test, min.samples=5, plot=TRUE, plot.hits=10, plot.xlab="mutation", plot.ylab="response") {
+mutation.analysis <- function(responses, data, out.prefix="", sample.names=NULL, test=wilcox.test, min.samples=5, plot=TRUE, plot.hits=10, plot.rows=2, plot.xlab="mutation", plot.ylab="response") {
 
   if (!is.null(sample.names)) {
     responses <- responses[sample.names]
   }
 
-  # filter cell models not present in the response and select genes mutated and non-mutated in minimum 10 (5+5) cell models
+  # filter cell models not present in the response and select genes mutated and non-mutated in sufficient cell models
   response.data <- merge(as.data.frame(responses), data, by=0)
   response.data <- response.data %>%
     drop_na(responses) %>%
@@ -261,21 +261,15 @@ mutation.analysis <- function(responses, data, out.prefix="", sample.names=NULL,
   colnames(response_vs_mutation_status) <- gsub("_", "\\.", colnames(response_vs_mutation_status))
   rownames(response_vs_mutation_status) <- response_vs_mutation_status$Gene
   response_vs_mutation_status$Gene <- NULL
-  utils::write.csv(response_vs_mutation_status, file = paste0(out.prefix, ".csv"))
 
-  if (plot) {
-    top.results <- response_vs_mutation_status[c(1:plot.hits),] %>% mutate(Gene = rownames(response_vs_mutation_status)[c(1:plot.hits)])
-    p <- response.data %>%
-      dplyr::filter(Gene %in% rownames(top.results)) %>%
-      left_join(top.results, by="Gene") %>%
-      ggplot(aes(y = responses, x = mutational_status)) +
-      geom_boxplot(outlier.shape = NA, width=0.5) +
-      geom_jitter(width = 0.05, size = 0.1, alpha = 0.5) +
-      xlab(plot.xlab) +
-      ylab(plot.ylab) +
-      facet_wrap(~ factor(Gene, levels = top.results$Gene) + paste("p =", format(p.value, digits=3)), scales = "free") +
-      theme_bw()
-    ggsave(plot = p, filename = paste0(out.prefix, ".pdf"), width = 210, height = 297, units = "mm")
+  if (out.prefix != "") {
+    utils::write.csv(response_vs_mutation_status, file = paste0(out.prefix, ".csv"))
+
+    if (plot) {
+      p <- plot.groups2(response_vs_mutation_status, NULL, response.data, 1:plot.hits, plot.rows,
+                        plot.xlab, plot.ylab)
+      ggsave(plot = p, filename = paste0(out.prefix, ".pdf"), width = 210, height = 297, units = "mm")
+    }
   }
 
   invisible(response_vs_mutation_status)

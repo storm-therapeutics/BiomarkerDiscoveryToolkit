@@ -189,6 +189,42 @@ plot.groups <- function(stats, responses, data, which=1:10, rows=2, title=NULL,
 }
 
 
+#' Generate multiple sets of boxplots from results of a [mutation.analysis()].
+#'
+#' @param stats Test statistics as returned by [mutation.analysis()]
+#' @param responses Named vector of numeric responses
+#' @param data Named binary matrix of gene mutation data
+#' @param which Indexes or names selecting which results (features) to plot
+#' @param rows Number of rows of plots
+#' @param title Plot title
+#' @param xlab X axis label
+#' @param ylab Y axis label
+#' @return Plot object
+#' @export plot.groups2
+plot.groups2 <- function(stats, responses, data, which=1:10, rows=2, title=NULL, xlab="mutation", ylab="response") {
+  if (is.null(responses)) { # responses and feature data are already merged
+    response.data <- data
+  } else { # merge responses and feature data, transform to long format:
+    response.data <- merge(as.data.frame(responses), data, by=0) %>%
+      drop_na(responses) %>%
+      pivot_longer(-(1:2), names_to = "feature", values_to = "status")
+  }
+
+  top.results <- stats[which, ] %>% mutate(feature = rownames(stats)[which])
+  response.data %>%
+    dplyr::filter(feature %in% rownames(top.results)) %>%
+    left_join(top.results, by="feature") %>%
+    ggplot(aes(y = responses, x = status)) +
+    geom_boxplot(outlier.shape = NA, width=0.5) +
+    geom_jitter(width = 0.1, size=1, alpha = 0.5) +
+    labs(x=xlab, y=ylab, title=title) +
+    facet_wrap(~ factor(feature, levels = top.results$feature) + paste("p =", format(p.value, digits=3)),
+               scales = "free_x", nrow=rows) +
+    theme_bw() +
+    theme(plot.title=element_text(face="bold", hjust=0.5))
+}
+
+
 #' Plot Cox model predictions for low/high feature values
 #'
 #' The names of the `quantiles` parameter are used in the figure legend
