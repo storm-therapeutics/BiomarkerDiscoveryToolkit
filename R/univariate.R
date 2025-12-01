@@ -245,7 +245,7 @@ mutation.analysis <- function(responses, data, out.prefix="", sample.names=NULL,
     dplyr::filter(sum(mutational_status == TRUE) >= min.samples & sum(mutational_status == FALSE) >= min.samples)
 
   # perform selected test by Gene
-  if (nrow(response.data) <= 2 * min.samples) stop("Sampling size too small for testing.")
+  if (nrow(response.data) <= 2 * min.samples) stop("Sample size too small for testing.")
   test_res <- response.data %>%
     do(t = test(responses ~ mutational_status, data=., paired=FALSE)) %>%
     summarise(across(Gene), p.value = t$p.value)
